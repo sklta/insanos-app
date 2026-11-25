@@ -97,6 +97,13 @@ internal sealed class SetupForm : ForgeWindow
         new Label { Text = text, Font = Paint2.Semi(10.5f), ForeColor = Theme.Bone, AutoSize = true, BackColor = Color.Transparent, Location = new Point(44, 13) }
     ];
 
+    /// <summary>Para o --preview das telas do README: como a guilda vê (sem a cópia de teste) e com uma chave colada.</summary>
+    public void ForPreview()
+    {
+        _addon.Visible = false;
+        _key.Box.Text = "nfapp_" + new string('x', 43);
+    }
+
     private void Browse()
     {
         using var dlg = new FolderBrowserDialog { Description = "Escolha a pasta do WoW Forever (a _forever_) ou a Interface\\AddOns", UseDescriptionForTitle = true };

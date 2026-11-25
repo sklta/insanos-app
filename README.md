@@ -18,6 +18,23 @@ App da guilda **INSANOS** (WoW Forever) para Windows. Ele leva as raids marcadas
 
 > **Baixar:** o `.exe` da versão mais nova está em [Releases](../../releases/latest). Não precisa instalar nada.
 
+## Telas
+
+<table>
+<tr>
+<td align="center" width="50%"><img src="docs/telas/welcome.png" alt="Tela de boas-vindas" width="300"><br><sub>Boas-vindas ao abrir, com os links da guilda</sub></td>
+<td align="center" width="50%"><img src="docs/telas/setup-readme.png" alt="Configuração" width="300"><br><sub>Configuração: a pasta do jogo e a chave do <code>/vincular-app</code></sub></td>
+</tr>
+<tr>
+<td align="center"><img src="docs/telas/status.png" alt="Janela de status" width="300"><br><sub>Perto do relógio: a próxima raid, já no addon</sub></td>
+<td align="center"><img src="docs/telas/status-espera.png" alt="Esperando o WoW Forever" width="300"><br><sub>Com o WoW Forever fechado, o app espera o jogo abrir</sub></td>
+</tr>
+<tr>
+<td align="center"><img src="docs/telas/toast-baixando.png" alt="Atualização baixando" width="300"><br><sub>Atualização: baixa e confere a assinatura</sub></td>
+<td align="center"><img src="docs/telas/toast-pronto.png" alt="Atualização pronta" width="300"><br><sub>…e avisa quando terminou</sub></td>
+</tr>
+</table>
+
 ## Como funciona
 
 1. No Discord da guilda, use `/vincular-app` e copie a chave (ela aparece só para você).

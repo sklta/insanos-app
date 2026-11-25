@@ -52,6 +52,12 @@ internal static class Program
                 File.WriteAllText(Path.Combine(fake, "NilbasForever", "NilbasForever.toc"), "## Title: INSANOS");
                 f = new SetupForm(new AppSettings { AddonsDir = fake }, h);
             }
+            else if (args[1] == "setup-readme")
+            {
+                var sf2 = new SetupForm(new AppSettings(), h);
+                sf2.ForPreview();
+                f = sf2;
+            }
             else f = new SetupForm(new AppSettings(), h);
             f.StartPosition = FormStartPosition.Manual;
             f.Location = new Point(-4000, -4000);
