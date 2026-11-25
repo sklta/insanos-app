@@ -108,7 +108,10 @@ internal sealed class SetupForm : ForgeWindow
     {
         var addons = WowLocator.NormalizeAddonsDir(_dir.Box.Text) is { } d ? WowLocator.InstalledAddons(d) : [];
         _addon.SetEnabledValues(addons);
-        _addon.Visible = addons.Count > 0;
+        // a escolha só aparece para quem tem as duas pastas (a cópia de teste é de quem cuida do addon);
+        // o pessoal da guilda só tem a NilbasForever, e ela fica escolhida sem mostrar nada
+        _addon.Visible = addons.Count > 1;
+        if (addons.Count == 1) _addon.SelectedValue = addons[0];
         _found.Text = addons.Count > 0 ? "✓  Addon encontrado" : "✕  Não achei o addon nessa pasta";
         _found.ForeColor = addons.Count > 0 ? Theme.Ok : Theme.Bad;
     }

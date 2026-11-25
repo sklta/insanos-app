@@ -9,7 +9,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>InsanosApp</AssemblyName>
     <RootNamespace>InsanosApp</RootNamespace>
-    <Version>0.2.2</Version>
+    <Version>0.2.3</Version>
     <Product>App Insanos</Product>
     <Company>INSANOS</Company>
     <Description>Leva as raids do Discord da INSANOS para o addon Insanos Guild Sync.</Description>

@@ -44,6 +44,14 @@ internal static class Program
                 t.Hide();
                 f = t;
             }
+            else if (args[1] == "setup-guilda")
+            {
+                // como o pessoal da guilda vê: só a pasta NilbasForever instalada
+                var fake = Path.Combine(Path.GetTempPath(), "insanos-preview", "_forever_", "Interface", "AddOns");
+                Directory.CreateDirectory(Path.Combine(fake, "NilbasForever"));
+                File.WriteAllText(Path.Combine(fake, "NilbasForever", "NilbasForever.toc"), "## Title: INSANOS");
+                f = new SetupForm(new AppSettings { AddonsDir = fake }, h);
+            }
             else f = new SetupForm(new AppSettings(), h);
             f.StartPosition = FormStartPosition.Manual;
             f.Location = new Point(-4000, -4000);
