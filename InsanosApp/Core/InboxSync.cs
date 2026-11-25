@@ -4,6 +4,10 @@ namespace InsanosApp.Core;
 public sealed record SyncOutcome(InboxStatus Status, bool Wrote, InboxRaid? First, int RaidCount, string Message)
 {
     public IReadOnlyList<InboxRaid> Raids { get; init; } = [];
+    /// <summary>O ritmo que o bot mandou (segundos), quando mandou.</summary>
+    public int? PollSeconds { get; init; }
+    /// <summary>Quanto esperar quando o bot disse "cedo demais" (segundos).</summary>
+    public int? RetryAfterSeconds { get; init; }
 }
 
 public static class InboxSync
@@ -17,7 +21,7 @@ public static class InboxSync
             case InboxStatus.Unauthorized:
                 return new(result.Status, false, null, 0, "Chave recusada: gere outra com /vincular-app no Discord.");
             case InboxStatus.RateLimited:
-                return new(result.Status, false, null, 0, "O bot pediu para esperar um pouco. Tento de novo depois.");
+                return new(result.Status, false, null, 0, "O bot pediu para esperar um pouco. Tento de novo depois.") { RetryAfterSeconds = result.RetryAfterSeconds };
             case InboxStatus.Offline:
                 return new(result.Status, false, null, 0, "Sem conexão com o bot. Tento de novo depois.");
             case InboxStatus.ServerError:
@@ -42,6 +46,6 @@ public static class InboxSync
         var msg = first is null
             ? "Nenhuma raid aberta sua agora."
             : $"{first.Inst}{(string.IsNullOrEmpty(first.When) ? "" : " · " + first.When)} ({first.Players} inscritos)";
-        return new(InboxStatus.Ok, wrote, first, raids.Count, msg) { Raids = raids };
+        return new(InboxStatus.Ok, wrote, first, raids.Count, msg) { Raids = raids, PollSeconds = result.PollSeconds };
     }
 }

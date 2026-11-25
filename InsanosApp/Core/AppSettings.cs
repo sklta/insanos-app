@@ -10,7 +10,8 @@ public sealed class AppSettings
     public string AddonFolder { get; set; } = "NilbasForever";
     public string? ProtectedKey { get; set; }
     public string ApiBase { get; set; } = InboxApi.DefaultBase;
-    public int PollMinutes { get; set; } = 5;
+    /// <summary>Intervalo normal entre as verificações, em segundos (perto da raid cai para 15 s).</summary>
+    public int PollSeconds { get; set; } = 30;
     public long LastChangeAt { get; set; }
     public string? LastRaidLabel { get; set; }
 

@@ -18,6 +18,7 @@ internal sealed class TrayApp : ApplicationContext
     private DateTime? _lastCheck;
     private DateTime _nextCheck = DateTime.Now;
     private bool _busy;
+    private int _failures;
 
     public TrayApp(AppSettings settings, HttpClient http)
     {
@@ -45,7 +46,7 @@ internal sealed class TrayApp : ApplicationContext
         _status.SiteRequested += (_, _) => Open(Site);
         _status.SetupRequested += (_, _) => { _status.Hide(); OpenSetup(); };
 
-        _timer.Interval = Math.Max(2, _settings.PollMinutes) * 60 * 1000;
+        _timer.Interval = Math.Max(15, _settings.PollSeconds) * 1000;
         _timer.Tick += async (_, _) => await SyncAsync(manual: false);
         _timer.Start();
         _ = SyncAsync(manual: false);
@@ -82,20 +83,34 @@ internal sealed class TrayApp : ApplicationContext
         {
             var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
             var r = await InboxSync.RunAsync(_http, _settings, key, now);
+            var prev = _last;
             _last = r;
             _lastCheck = DateTime.Now;
+            // quando verificar de novo: o ritmo que o bot mandou, a espera que ele pediu, ou, sem conexão, cada vez mais devagar
+            _failures = r.Status == InboxStatus.Ok ? 0 : _failures + 1;
+            var normal = TimeSpan.FromSeconds(Math.Max(15, _settings.PollSeconds));
+            _timer.Interval = (int)RaidRoster.NextCheck(r, DateTimeOffset.UtcNow, normal, _failures).TotalMilliseconds;
             if (r.Status != InboxStatus.Ok)
             {
                 if (manual || r.Status == InboxStatus.Unauthorized) _icon.ShowBalloonTip(6000, "App Insanos", r.Message, ToolTipIcon.Warning);
                 return;
             }
+
+            var changes = prev is { Status: InboxStatus.Ok } ? RaidRoster.Diff(prev.Raids, r.Raids) : [];
             if (r.Wrote)
             {
                 _settings.LastChangeAt = now;
                 _settings.LastRaidLabel = r.First is null ? null : r.Message;
                 _settings.Save();
-                if (r.First is not null)
-                    _icon.ShowBalloonTip(8000, "Raid pronta no addon", r.First.Inst + " · " + r.First.Details() + "\nEntre no jogo ou dê /reload.", ToolTipIcon.Info);
+            }
+            if (changes.Count > 0)
+            {
+                var text = string.Join("\n", changes.Take(3).Select(c => c.Describe()));
+                _icon.ShowBalloonTip(8000, "A raid mudou", text + "\nNo jogo: clique em Puxar do app na aba Raid.", ToolTipIcon.Info);
+            }
+            else if (r.Wrote && r.First is not null && prev?.First?.Gid != r.First.Gid)
+            {
+                _icon.ShowBalloonTip(8000, "Raid pronta no addon", r.First.Inst + " · " + r.First.Details() + "\nEntre no jogo ou clique em Puxar do app.", ToolTipIcon.Info);
             }
             else if (manual && !_status.Visible)
             {
@@ -105,8 +120,10 @@ internal sealed class TrayApp : ApplicationContext
         finally
         {
             _busy = false;
+            // recomeça a contagem: depois de uma verificação (ou de o intervalo mudar), conta do zero
+            _timer.Stop();
+            _timer.Start();
             _nextCheck = DateTime.Now.AddMilliseconds(_timer.Interval);
-            if (manual) { _timer.Stop(); _timer.Start(); }
             Changed();
         }
     }

@@ -87,6 +87,71 @@ try
     var missing = await InboxSync.RunAsync(Fake(HttpStatusCode.OK, json), new AppSettings { AddonsDir = settings.AddonsDir, AddonFolder = "NilbasForeverTeste" }, key, 800);
     Ok(missing.Status != InboxStatus.Ok && missing.Message.Contains("INSANOS (teste)"), "pasta do addon que não existe: avisa");
 
+    // ---------- quem entrou e quem saiu ----------
+    string Enc(string s) => Uri.EscapeDataString(s);
+    InboxRaid Raid(int gid, string tanks, string heals, string dps, long? ts = null) =>
+        new(gid, "Molten Core", "sáb 21:00", ts, 1, 0, Key($"inst={Enc("Molten Core")}&gid={gid}&tanks={Enc(tanks)}&heals={Enc(heals)}&dps={Enc(dps)}"));
+    Ok(RaidRoster.Decode(k1)["inst"] == "Molten Core", "lê o nome da raid de dentro da chave");
+    Ok(RaidRoster.Members(Key("tanks=Ana,Bia&heals=Caio&dps=")).SequenceEqual(["Ana", "Bia", "Caio"]), "lê os inscritos das três funções");
+    Ok(RaidRoster.Members("!NILBAS:@@@").Count == 0 && RaidRoster.Members(null).Count == 0, "chave estragada: ninguém, sem quebrar");
+
+    var antes = new[] { Raid(7, "Ana", "Bia", "Caio,Duda") };
+    var depois = new[] { Raid(7, "Ana", "Bia,Edu", "Caio") };
+    var diff = RaidRoster.Diff(antes, depois);
+    Ok(diff.Count == 1 && diff[0].Joined.SequenceEqual(["Edu"]) && diff[0].Left.SequenceEqual(["Duda"]), "Edu entrou e Duda saiu");
+    Ok(diff[0].Describe() == "Molten Core: Edu entrou · Duda saiu", "texto do aviso: " + diff[0].Describe());
+    Ok(RaidRoster.Diff(antes, antes).Count == 0, "nada mudou: sem aviso");
+    Ok(RaidRoster.Diff(antes, [Raid(8, "Zé", "", "")]).Count == 0, "raid nova não conta como entrou/saiu");
+    var muitos = RaidRoster.Diff([Raid(7, "", "", "")], [Raid(7, "A,B,C,D", "", "")]);
+    Ok(muitos[0].Describe() == "Molten Core: A, B e mais 2 entraram", "muita gente: resume");
+
+    var agora = DateTimeOffset.FromUnixTimeSeconds(1795600000);
+    var cinco = TimeSpan.FromSeconds(30);
+    Ok(RaidRoster.PollInterval([Raid(7, "", "", "", agora.AddHours(2).ToUnixTimeMilliseconds())], agora, cinco) == TimeSpan.FromSeconds(15), "raid daqui a 2 h: verifica a cada 15 s");
+    Ok(RaidRoster.PollInterval([Raid(7, "", "", "", agora.AddMinutes(-30).ToUnixTimeMilliseconds())], agora, cinco) == TimeSpan.FromSeconds(15), "raid começou há 30 min: continua 15 s");
+    Ok(RaidRoster.PollInterval([Raid(7, "", "", "", agora.AddDays(1).ToUnixTimeMilliseconds())], agora, cinco) == cinco, "raid amanhã: intervalo normal");
+    Ok(RaidRoster.PollInterval([Raid(7, "", "", "")], agora, cinco) == cinco, "raid sem horário: intervalo normal");
+
+    // ---------- o bot decide o ritmo ----------
+    HttpClient Respond(Func<HttpResponseMessage> make) => new(new FakeHandler(_ => make()));
+    var comCabecalho = await InboxApi.FetchAsync(Respond(() =>
+    {
+        var m = new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(json) };
+        m.Headers.Add("X-Insanos-Poll", "15");
+        return m;
+    }), "https://x.test", key);
+    Ok(comCabecalho.PollSeconds == 15, "lê o ritmo do cabeçalho X-Insanos-Poll");
+    var soNoCorpo = await InboxApi.FetchAsync(Fake(HttpStatusCode.OK, json.Replace("\"v\":1,", "\"v\":1,\"poll\":20,")), "https://x.test", key);
+    Ok(soNoCorpo.PollSeconds == 20, "sem cabeçalho, lê o ritmo do campo poll");
+    Ok(ok.PollSeconds is null, "bot antigo (sem ritmo): fica sem valor");
+    var cedo = await InboxApi.FetchAsync(Respond(() =>
+    {
+        var m = new HttpResponseMessage((HttpStatusCode)429);
+        m.Headers.RetryAfter = new System.Net.Http.Headers.RetryConditionHeaderValue(TimeSpan.FromSeconds(42));
+        return m;
+    }), "https://x.test", key);
+    Ok(cedo.Status == InboxStatus.RateLimited && cedo.RetryAfterSeconds == 42, "429: lê quanto esperar (Retry-After)");
+
+    var ts = DateTimeOffset.FromUnixTimeSeconds(1795600000);
+    var trinta = TimeSpan.FromSeconds(30);
+    SyncOutcome Out(InboxStatus st, int? poll = null, int? retry = null, IReadOnlyList<InboxRaid>? raids = null) =>
+        new(st, false, null, 0, "") { PollSeconds = poll, RetryAfterSeconds = retry, Raids = raids ?? [] };
+    Ok(RaidRoster.NextCheck(Out(InboxStatus.Ok, poll: 15), ts, trinta, 0) == TimeSpan.FromSeconds(15), "segue o ritmo do bot (15 s)");
+    Ok(RaidRoster.NextCheck(Out(InboxStatus.Ok, poll: 2), ts, trinta, 0) == TimeSpan.FromSeconds(10), "ritmo baixo demais: no mínimo 10 s");
+    Ok(RaidRoster.NextCheck(Out(InboxStatus.Ok, poll: 99999), ts, trinta, 0) == TimeSpan.FromMinutes(10), "ritmo alto demais: no máximo 10 min");
+    Ok(RaidRoster.NextCheck(Out(InboxStatus.Ok, raids: [Raid(7, "", "", "", ts.AddHours(1).ToUnixTimeMilliseconds())]), ts, trinta, 0) == TimeSpan.FromSeconds(15), "bot antigo: o app calcula sozinho");
+    Ok(RaidRoster.NextCheck(Out(InboxStatus.RateLimited, retry: 42), ts, trinta, 1) == TimeSpan.FromSeconds(42), "cedo demais: espera o que o bot pediu");
+    Ok(RaidRoster.NextCheck(Out(InboxStatus.Offline), ts, trinta, 1) == TimeSpan.FromSeconds(30), "sem conexão: 30 s na primeira");
+    Ok(RaidRoster.NextCheck(Out(InboxStatus.Offline), ts, trinta, 2) == TimeSpan.FromSeconds(60), "sem conexão de novo: 1 min");
+    Ok(RaidRoster.NextCheck(Out(InboxStatus.Offline), ts, trinta, 9) == TimeSpan.FromMinutes(5), "sem conexão há muito tempo: no máximo 5 min");
+    var rodada = await InboxSync.RunAsync(Respond(() =>
+    {
+        var m = new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(json) };
+        m.Headers.Add("X-Insanos-Poll", "15");
+        return m;
+    }), settings, key, 900);
+    Ok(rodada.PollSeconds == 15, "a rodada repassa o ritmo do bot para o ícone");
+
     // ---------- pasta do WoW ----------
     var forever = Path.Combine(tmp.FullName, "World of Warcraft", "_forever_");
     var addons = Path.Combine(forever, "Interface", "AddOns");
@@ -100,9 +165,9 @@ try
 
     // ---------- configurações ----------
     var cfgDir = Path.Combine(tmp.FullName, "cfg");
-    new AppSettings { AddonsDir = addons, AddonFolder = "NilbasForeverTeste", ProtectedKey = "abc", PollMinutes = 3 }.Save(cfgDir);
+    new AppSettings { AddonsDir = addons, AddonFolder = "NilbasForeverTeste", ProtectedKey = "abc", PollSeconds = 45 }.Save(cfgDir);
     var back = AppSettings.Load(cfgDir);
-    Ok(back.AddonsDir == addons && back.AddonFolder == "NilbasForeverTeste" && back.PollMinutes == 3 && back.IsComplete, "configurações salvam e voltam");
+    Ok(back.AddonsDir == addons && back.AddonFolder == "NilbasForeverTeste" && back.PollSeconds == 45 && back.IsComplete, "configurações salvam e voltam");
     File.WriteAllText(Path.Combine(cfgDir, "config.json"), "{quebrado");
     Ok(!AppSettings.Load(cfgDir).IsComplete, "config.json estragado volta ao começo sem quebrar");
 }

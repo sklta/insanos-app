@@ -41,9 +41,15 @@ public sealed record InboxRaid(
 public sealed record InboxPayload(
     [property: JsonPropertyName("v")] int V,
     [property: JsonPropertyName("addon")] string? Addon,
-    [property: JsonPropertyName("raids")] List<InboxRaid> Raids);
+    [property: JsonPropertyName("raids")] List<InboxRaid> Raids,
+    [property: JsonPropertyName("poll")] int? Poll = null);
 
-public sealed record InboxResult(InboxStatus Status, InboxPayload? Payload = null, string? Detail = null);
+/// <summary>
+/// O que o bot respondeu. PollSeconds: em quanto tempo perguntar de novo (o bot decide o ritmo; cabeçalho
+/// X-Insanos-Poll ou campo poll). RetryAfterSeconds: quanto esperar quando o bot disse "cedo demais" (429).
+/// </summary>
+public sealed record InboxResult(InboxStatus Status, InboxPayload? Payload = null, string? Detail = null,
+    int? PollSeconds = null, int? RetryAfterSeconds = null);
 
 public static partial class InboxApi
 {
@@ -74,13 +80,29 @@ public static partial class InboxApi
         {
             using var res = await http.SendAsync(req, ct);
             if (res.StatusCode == HttpStatusCode.Unauthorized) return new(InboxStatus.Unauthorized);
-            if (res.StatusCode == (HttpStatusCode)429) return new(InboxStatus.RateLimited);
+            if (res.StatusCode == (HttpStatusCode)429)
+                return new(InboxStatus.RateLimited, RetryAfterSeconds: RetryAfter(res));
             if (!res.IsSuccessStatusCode) return new(InboxStatus.ServerError, Detail: ((int)res.StatusCode).ToString());
             var payload = Parse(await res.Content.ReadAsStringAsync(ct));
-            return payload is null ? new(InboxStatus.ServerError, Detail: "resposta inválida") : new(InboxStatus.Ok, payload);
+            if (payload is null) return new(InboxStatus.ServerError, Detail: "resposta inválida");
+            return new(InboxStatus.Ok, payload, PollSeconds: HeaderSeconds(res, "X-Insanos-Poll") ?? payload.Poll);
         }
         catch (HttpRequestException e) { return new(InboxStatus.Offline, Detail: e.Message); }
         catch (TaskCanceledException) when (!ct.IsCancellationRequested) { return new(InboxStatus.Offline, Detail: "tempo esgotado"); }
+    }
+
+    private static int? HeaderSeconds(HttpResponseMessage res, string name) =>
+        res.Headers.TryGetValues(name, out var values) && int.TryParse(values.FirstOrDefault(), out var s) && s > 0 ? s : null;
+
+    private static int? RetryAfter(HttpResponseMessage res)
+    {
+        if (res.Headers.RetryAfter?.Delta is TimeSpan d && d > TimeSpan.Zero) return (int)Math.Ceiling(d.TotalSeconds);
+        if (res.Headers.RetryAfter?.Date is DateTimeOffset at)
+        {
+            var left = (int)Math.Ceiling((at - DateTimeOffset.UtcNow).TotalSeconds);
+            return left > 0 ? left : null;
+        }
+        return null;
     }
 
     public static HttpClient CreateClient(string version)
