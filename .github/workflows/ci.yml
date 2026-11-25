@@ -1,0 +1,35 @@
+# Confere cada mudança: compila, roda os testes e gera o .exe (sem publicar nada).
+# Qualquer pessoa pode ver o resultado na aba Actions do repositório.
+name: Testes
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  testes:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Testes do núcleo
+        run: dotnet run --project InsanosApp.Tests -c Release
+
+      - name: Gerar o .exe (só para conferir que monta)
+        shell: pwsh
+        run: |
+          dotnet publish InsanosApp/InsanosApp.csproj -c Release -r win-x64 --self-contained true `
+            -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true `
+            -p:EnableCompressionInSingleFile=true -p:DebugType=none -o out
+          $f = Get-Item out/InsanosApp.exe
+          "Tamanho: {0:N1} MB" -f ($f.Length / 1MB)
+          "SHA-256: " + (Get-FileHash $f -Algorithm SHA256).Hash.ToLower()

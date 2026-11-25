@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- App Insanos no PC (docs/plano-app-pc.md): ícone perto do relógio que traz as raids do Discord para o addon. -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>InsanosApp</AssemblyName>
+    <RootNamespace>InsanosApp</RootNamespace>
+    <Version>0.1.0</Version>
+    <Product>App Insanos</Product>
+    <Company>INSANOS</Company>
+    <Description>Leva as raids do Discord da INSANOS para o addon Insanos Guild Sync.</Description>
+    <ApplicationIcon>app.ico</ApplicationIcon>
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+    <SatelliteResourceLanguages>pt-BR</SatelliteResourceLanguages>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="app.ico" LogicalName="InsanosApp.app.ico" />
+    <EmbeddedResource Include="wordmark.png" LogicalName="InsanosApp.wordmark.png" />
+  </ItemGroup>
+
+</Project>

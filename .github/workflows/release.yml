@@ -1,0 +1,85 @@
+# Publica uma versão do app: roda os testes, gera o InsanosApp.exe a partir DESTE código, calcula a impressão
+# digital (SHA-256), registra uma atestação assinada pelo GitHub de que o .exe saiu deste repositório e deste
+# workflow, manda o .exe para o VirusTotal (se a chave estiver configurada) e cria o release com tudo isso.
+# Dispara com uma tag v* (por exemplo v0.1.0). Tag com hífen (v0.1.0-beta.1) sai como pré-lançamento.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write       # criar o release
+  id-token: write       # assinar a atestação
+  attestations: write   # guardar a atestação
+
+jobs:
+  release:
+    runs-on: windows-latest
+    env:
+      VT_API_KEY: ${{ secrets.VT_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Testes do núcleo
+        run: dotnet run --project InsanosApp.Tests -c Release
+
+      - name: Gerar o .exe
+        shell: pwsh
+        run: |
+          $v = "${{ github.ref_name }}".TrimStart('v')
+          $num = ($v -split '-')[0]
+          dotnet publish InsanosApp/InsanosApp.csproj -c Release -r win-x64 --self-contained true `
+            -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true `
+            -p:EnableCompressionInSingleFile=true -p:DebugType=none `
+            -p:Version=$num -p:InformationalVersion=$v -o out
+          $exe = "InsanosApp-$v.exe"
+          Copy-Item out/InsanosApp.exe $exe
+          $h = (Get-FileHash $exe -Algorithm SHA256).Hash.ToLower()
+          "$h  $exe" | Out-File -Encoding ascii "$exe.sha256"
+          "VERSION=$v" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
+          "EXE=$exe" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
+          "SHA256=$h" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
+
+      - name: Atestação de origem (assinada pelo GitHub)
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: ${{ env.EXE }}
+
+      - name: VirusTotal
+        if: env.VT_API_KEY != ''
+        shell: pwsh
+        run: |
+          $r = curl.exe -s --request POST --url https://www.virustotal.com/api/v3/files `
+            --header "x-apikey: $env:VT_API_KEY" --form "file=@$env:EXE"
+          if ($LASTEXITCODE -ne 0) { Write-Warning "VirusTotal não respondeu"; exit 0 }
+          "VT_URL=https://www.virustotal.com/gui/file/$env:SHA256" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
+
+      - name: Criar o release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $vt = if ($env:VT_URL) { "- **VirusTotal:** $env:VT_URL" } else { "- **VirusTotal:** envie o .exe em https://www.virustotal.com para conferir" }
+          $notes = @"
+          ## App Insanos $env:VERSION
+
+          Baixe o **$env:EXE** abaixo e abra. Não precisa instalar nada.
+
+          ### Como conferir que este .exe é deste código
+
+          - **SHA-256:** ``$env:SHA256``
+            No PowerShell: ``Get-FileHash .\$env:EXE -Algorithm SHA256``
+          - **Atestação do GitHub:** este .exe foi gerado pelo workflow ``release.yml`` a partir do commit ``${{ github.sha }}``.
+            Para conferir: ``gh attestation verify .\$env:EXE -R ${{ github.repository }}``
+          $vt
+
+          Leia a seção **Segurança** do README para saber o que o app faz e o que não faz.
+          "@ -replace '(?m)^          ', ''
+          $a = @("${{ github.ref_name }}", $env:EXE, "$env:EXE.sha256", '--title', "App Insanos $env:VERSION", '--notes', $notes)
+          if ($env:VERSION -match '-') { $a += '--prerelease' }
+          gh release create @a
