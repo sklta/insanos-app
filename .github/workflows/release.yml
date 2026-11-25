@@ -17,6 +17,9 @@ permissions:
 jobs:
   release:
     runs-on: windows-latest
+    # a chave de assinatura (UPDATE_SIGNING_KEY) mora no ambiente "lancamento", liberado só para tags v*; e só o dono
+    # do repositório cria tags v* (regra do repositório). Branch ou workflow de outra pessoa não chega na chave.
+    environment: lancamento
     env:
       VT_API_KEY: ${{ secrets.VT_API_KEY }}
     steps:
