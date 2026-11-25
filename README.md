@@ -10,8 +10,9 @@ App da guilda **INSANOS** (WoW Forever) para Windows. Ele leva as raids marcadas
 
 1. No Discord da guilda, use `/vincular-app` e copie a chave (ela aparece só para você).
 2. Abra o app, confira a pasta do WoW Forever e cole a chave.
-3. O app fica perto do relógio. A cada 5 minutos ele pergunta ao bot quais raids você lidera e deixa a próxima
-   pronta no addon. Entre no jogo ou dê `/reload`: a raid já aparece carregada. Ninguém é convidado sozinho.
+3. O app fica perto do relógio. A cada 30 segundos (15 perto da hora da raid) ele pergunta ao bot quais raids você
+   lidera e deixa a lista pronta no addon. Entre no jogo ou clique em "Puxar do app" na aba Raid: a raid já aparece
+   carregada, e "Trocar raid" escolhe outra. Ninguém é convidado sozinho.
 
 Para desligar: `/desvincular-app` no Discord, e "Sair" no menu do ícone.
 
@@ -52,10 +53,27 @@ Cada versão é montada pelo próprio GitHub, a partir deste código, no workflo
   (tem que dar o mesmo valor publicado no release).
 - **VirusTotal:** o link da análise de dezenas de antivírus vai junto no release.
 
-O `.exe` ainda não tem assinatura digital paga, então na primeira vez o Windows pode mostrar "O Windows protegeu o
-computador". Clique em "Mais informações" e "Executar assim mesmo", depois de conferir o arquivo como acima.
+Enquanto o `.exe` não tiver assinatura digital (veja abaixo), na primeira vez o Windows pode mostrar "O Windows
+protegeu o computador". Clique em "Mais informações" e "Executar assim mesmo", depois de conferir o arquivo como acima.
 
-Achou um problema de segurança? Avise um oficial da guilda no Discord.
+Achou um problema de segurança? Avise um oficial da guilda no Discord ou abra uma issue.
+
+Privacidade: o que o app guarda e envia está em [`PRIVACY.md`](PRIVACY.md).
+
+## Code signing policy / Política de assinatura
+
+We applied for free code signing from the [SignPath Foundation](https://signpath.org). Once approved, Windows releases
+will be signed: *Free code signing provided by [SignPath.io](https://signpath.io), certificate by
+[SignPath Foundation](https://signpath.org).*
+
+- Only files built by GitHub Actions from this repository ([`release.yml`](.github/workflows/release.yml)) are signed.
+  Nothing built on a personal computer is ever signed.
+- Committers and reviewers: [sklta](https://github.com/sklta).
+- Approvers (each signing request is approved by hand): [sklta](https://github.com/sklta).
+- Privacy: [`PRIVACY.md`](PRIVACY.md). The app sends no data except the app key to the guild's bot.
+
+Pedimos a assinatura gratuita do SignPath Foundation. Quando aprovada, os `.exe` deste repositório saem assinados,
+sempre montados pelo GitHub a partir deste código e aprovados um a um.
 
 ## Para quem programa
 
@@ -68,4 +86,4 @@ Achou um problema de segurança? Avise um oficial da guilda no Discord.
 - Site da guilda: https://insanos.discloud.app
 - Addon no CurseForge: https://www.curseforge.com/wow/addons/insanos-guild-sync
 
-Site e app de fã, sem ligação com a Blizzard Entertainment.
+Código sob a licença MIT ([`LICENSE`](LICENSE)). Site e app de fã, sem ligação com a Blizzard Entertainment.
