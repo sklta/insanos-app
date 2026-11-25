@@ -37,6 +37,9 @@ O código deste repositório é todo o app: dá para ler cada linha. O resumo do
 - **Conversa com dois lugares só:** `https://insanos.discloud.app`, o bot da guilda
   ([`InboxApi.cs`](InsanosApp/Core/InboxApi.cs)), para mandar a sua chave e receber as chaves `!NILBAS` das raids que
   você lidera; e o GitHub deste repositório, para ver se saiu versão nova ([`Updater.cs`](InsanosApp/Core/Updater.cs)).
+- **Só trabalha com o WoW Forever aberto:** com o jogo fechado, o app fica parado e não chama o bot. Para saber se
+  o jogo está aberto, ele só pergunta ao Windows o caminho do `Wow.exe` (o mesmo que o Gerenciador de Tarefas mostra),
+  sem ler a memória do jogo ([`GameWatch.cs`](InsanosApp/Core/GameWatch.cs)).
 - **Se atualiza sozinho, com conferência:** a cada 6 horas o app olha os [Releases](../../releases/latest). Se
   houver versão nova, baixa o `.exe` e só troca o arquivo se a assinatura `.sig` bater com a chave pública que vem
   dentro do app. Essa assinatura só é feita pelo workflow de lançamento deste repositório: um `.exe` posto ali por

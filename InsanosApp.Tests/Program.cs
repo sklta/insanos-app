@@ -290,6 +290,15 @@ try
         Ok(Updater.Sha256Of(appExe) == payloadSha, "calcula o SHA-256 do arquivo");
     }
     Ok(new AppSettings().AutoUpdate, "atualizar sozinho vem ligado");
+
+    // ---------- trava: só trabalha com o WoW Forever aberto ----------
+    var gameAddons = @"C:\Jogos\World of Warcraft\_forever_\Interface\AddOns";
+    Ok(GameWatch.ExpectedExe(gameAddons) == @"C:\Jogos\World of Warcraft\_forever_\Wow.exe", "acha o Wow.exe da pasta _forever_ escolhida");
+    Ok(GameWatch.IsForever(@"c:\jogos\world of warcraft\_FOREVER_\wow.exe", gameAddons), "reconhece o jogo sem ligar para maiúsculas");
+    Ok(!GameWatch.IsForever(@"C:\Jogos\World of Warcraft\_retail_\Wow.exe", gameAddons), "outro WoW (retail) não conta");
+    Ok(!GameWatch.IsForever(null, gameAddons) && !GameWatch.IsForever(@"C:\x\Wow.exe", null), "sem caminho ou sem configuração: não conta");
+    Ok(!GameWatch.IsRunning(Path.Combine(tmp.FullName, "Interface", "AddOns")) || System.Diagnostics.Process.GetProcessesByName("Wow").Length > 0,
+        "sem nenhum Wow aberto: o app espera");
 }
 finally
 {

@@ -195,16 +195,19 @@ internal sealed class ForgeButton : Control
             TextRenderer.DrawText(g, Text, Font, Rectangle.Round(r), color, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
             return;
         }
-        // ícone + texto, os dois centralizados juntos
+        // ícone + texto, os dois centralizados juntos (sem texto: só o ícone, no meio)
         using var icons = Paint2.Icons(Font.Size + 1.5f);
         var flags = TextFormatFlags.NoPadding | TextFormatFlags.VerticalCenter;
+        var hasText = !string.IsNullOrEmpty(Text);
         var gw = TextRenderer.MeasureText(g, Glyph, icons, Size.Empty, flags).Width;
-        var tw = TextRenderer.MeasureText(g, Text, Font, Size.Empty, flags).Width;
-        var x = (int)(r.X + (r.Width - gw - 8 - tw) / 2);
+        var tw = hasText ? TextRenderer.MeasureText(g, Text, Font, Size.Empty, flags).Width : 0;
+        var gap = hasText ? 8 : 0;
+        var x = (int)Math.Round(r.X + (r.Width - gw - gap - tw) / 2);
         var y = (int)r.Y;
         var h = (int)r.Height;
-        TextRenderer.DrawText(g, Glyph, icons, new Rectangle(x, y, gw + 2, h), Primary ? color : Theme.Gold, flags);
-        TextRenderer.DrawText(g, Text, Font, new Rectangle(x + gw + 8, y, tw + 4, h), color, flags);
+        var glyphColor = Primary ? color : (_hover ? Color.White : Theme.Gold);
+        TextRenderer.DrawText(g, Glyph, icons, new Rectangle(x, y, gw + 2, h), glyphColor, flags);
+        if (hasText) TextRenderer.DrawText(g, Text, Font, new Rectangle(x + gw + gap, y, tw + 4, h), color, flags);
     }
 }
 

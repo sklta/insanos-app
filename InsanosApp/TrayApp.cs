@@ -18,6 +18,8 @@ internal sealed class TrayApp : ApplicationContext
     private DateTime _nextCheck = DateTime.Now;
     private bool _busy;
     private int _failures;
+    private bool _waitingForGame;
+    private const int GameCheckMs = 10 * 1000;   // com o jogo fechado, olha a cada 10 s se ele abriu
     private readonly System.Windows.Forms.Timer _updateTimer = new();
     private bool _updating;
     private Version? _announced;        // versão nova já avisada (para não repetir o balão)
@@ -148,7 +150,7 @@ internal sealed class TrayApp : ApplicationContext
     private StatusView View() => new()
     {
         Configured = _settings.IsComplete && KeyVault.Unprotect(_settings.ProtectedKey) is not null,
-        Last = _last, LastCheck = _lastCheck, NextCheck = _nextCheck, Busy = _busy
+        Last = _last, LastCheck = _lastCheck, NextCheck = _nextCheck, Busy = _busy, WaitingForGame = _waitingForGame
     };
 
     private void ToggleStatus()
@@ -160,7 +162,7 @@ internal sealed class TrayApp : ApplicationContext
 
     private void Changed()
     {
-        var tip = "App Insanos · " + (_last?.Message ?? "iniciando");
+        var tip = "App Insanos · " + (_waitingForGame ? "esperando o WoW Forever abrir" : _last?.Message ?? "iniciando");
         _icon.Text = tip.Length > 63 ? tip[..62] + "…" : tip;
         if (_status.Visible) _status.Render();
     }
@@ -170,6 +172,17 @@ internal sealed class TrayApp : ApplicationContext
         if (_busy) return;
         var key = KeyVault.Unprotect(_settings.ProtectedKey);
         if (!_settings.IsComplete || key is null) { Changed(); return; }
+        // trava: com o WoW Forever fechado o app fica parado, sem chamar o bot; o clique em "Atualizar agora" ainda vale
+        _waitingForGame = !manual && !GameWatch.IsRunning(_settings.AddonsDir);
+        if (_waitingForGame)
+        {
+            _timer.Stop();
+            _timer.Interval = GameCheckMs;
+            _timer.Start();
+            _nextCheck = DateTime.Now.AddMilliseconds(_timer.Interval);
+            Changed();
+            return;
+        }
         _busy = true;
         Changed();
         try

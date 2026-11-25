@@ -18,7 +18,7 @@ internal static class Program
             ApplicationConfiguration.Initialize();
             using var h = InboxApi.CreateClient(Version);
             Form f;
-            if (args[1] == "status")
+            if (args[1] is "status" or "status-espera")
             {
                 var k = "!NILBAS:QUJD";
                 var raids = new List<InboxRaid>
@@ -28,7 +28,7 @@ internal static class Program
                 };
                 var view = new StatusView
                 {
-                    Configured = true, LastCheck = DateTime.Now, NextCheck = DateTime.Now.AddMinutes(4),
+                    Configured = true, LastCheck = DateTime.Now, NextCheck = DateTime.Now.AddMinutes(4), WaitingForGame = args[1] == "status-espera",
                     Last = new SyncOutcome(InboxStatus.Ok, false, raids[0], 2, "Molten Core") { Raids = raids }
                 };
                 var sf = new StatusForm(() => view);
@@ -45,6 +45,7 @@ internal static class Program
             Application.DoEvents();
             using var bmp = new Bitmap(f.Width, f.Height);
             f.DrawToBitmap(bmp, new Rectangle(Point.Empty, f.Size));
+            if (f is StatusForm s3) s3.PaintWaitOnto(bmp);
             bmp.Save(args[2], System.Drawing.Imaging.ImageFormat.Png);
             f.Dispose();
             return;
