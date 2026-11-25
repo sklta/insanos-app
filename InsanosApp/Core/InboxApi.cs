@@ -42,7 +42,9 @@ public sealed record InboxPayload(
     [property: JsonPropertyName("v")] int V,
     [property: JsonPropertyName("addon")] string? Addon,
     [property: JsonPropertyName("raids")] List<InboxRaid> Raids,
-    [property: JsonPropertyName("poll")] int? Poll = null);
+    [property: JsonPropertyName("poll")] int? Poll = null,
+    // versão mais nova do app que o bot conhece: só um aviso para procurar a atualização (que vem do GitHub, assinada)
+    [property: JsonPropertyName("app")] string? App = null);
 
 /// <summary>
 /// O que o bot respondeu. PollSeconds: em quanto tempo perguntar de novo (o bot decide o ritmo; cabeçalho

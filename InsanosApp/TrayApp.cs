@@ -23,6 +23,8 @@ internal sealed class TrayApp : ApplicationContext
     private readonly System.Windows.Forms.Timer _updateTimer = new();
     private bool _updating;
     private Version? _announced;        // versão nova já avisada (para não repetir o balão)
+    private Version? _hinted;           // versão que o bot avisou e já fez o app procurar (uma vez por versão)
+    private const int UpdateEveryMs = 30 * 60 * 1000;   // olhada no GitHub a cada 30 min, além do aviso do bot
     private Action? _balloonClick;      // o que o clique no balão faz (padrão: abrir o status)
     private UpdateToast? _toast;        // a janelinha da atualização, em cima do relógio
 
@@ -62,17 +64,26 @@ internal sealed class TrayApp : ApplicationContext
         _timer.Start();
         _ = SyncAsync(manual: false);
 
-        // atualização: a primeira olhada 1 minuto depois de abrir, depois a cada 6 horas
+        // atualização: a primeira olhada 1 minuto depois de abrir, depois a cada 30 minutos; e na hora, quando o bot
+        // avisar que saiu versão nova (ele responde a versão mais nova junto com as raids)
         _updateTimer.Interval = 60 * 1000;
         _updateTimer.Tick += async (_, _) =>
         {
-            _updateTimer.Interval = 6 * 60 * 60 * 1000;
+            _updateTimer.Interval = UpdateEveryMs;
             await CheckUpdateAsync(manual: false);
         };
         _updateTimer.Start();
         if (justUpdated)
             Toast().Finish(UpdateToast.Kind.Done, "App Insanos atualizado", "Agora na versão " + Program.Version + " · assinatura conferida",
                 "Ver novidades", () => OpenRelease("https://github.com/" + Updater.Repo + "/releases/tag/v" + Program.Version));
+    }
+
+    // fora do SyncAsync (que está no meio de uma rodada): a atualização roda logo depois, na fila da janela
+    private void BeginInvokeUpdate()
+    {
+        var once = new System.Windows.Forms.Timer { Interval = 500 };
+        once.Tick += async (_, _) => { once.Stop(); once.Dispose(); await CheckUpdateAsync(manual: false); };
+        once.Start();
     }
 
     private void Balloon(int ms, string title, string text, ToolTipIcon icon, Action? onClick = null)
@@ -215,6 +226,14 @@ internal sealed class TrayApp : ApplicationContext
             {
                 if (manual || r.Status == InboxStatus.Unauthorized) _icon.ShowBalloonTip(6000, "App Insanos", r.Message, ToolTipIcon.Warning);
                 return;
+            }
+
+            // o bot avisou uma versão mais nova do app: procura agora (o download e a assinatura vêm do GitHub)
+            if (Updater.ParseVersion(r.LatestApp) is { } hint && hint != _hinted
+                && Updater.IsNewer(hint, Version.Parse(Program.Version)))
+            {
+                _hinted = hint;
+                BeginInvokeUpdate();
             }
 
             var changes = prev is { Status: InboxStatus.Ok } ? RaidRoster.Diff(prev.Raids, r.Raids) : [];

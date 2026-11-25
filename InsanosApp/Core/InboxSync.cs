@@ -8,6 +8,8 @@ public sealed record SyncOutcome(InboxStatus Status, bool Wrote, InboxRaid? Firs
     public int? PollSeconds { get; init; }
     /// <summary>Quanto esperar quando o bot disse "cedo demais" (segundos).</summary>
     public int? RetryAfterSeconds { get; init; }
+    /// <summary>A versão mais nova do app que o bot avisou (texto como veio; o app confere antes de usar).</summary>
+    public string? LatestApp { get; init; }
 }
 
 public static class InboxSync
@@ -48,6 +50,6 @@ public static class InboxSync
         var msg = first is null
             ? "Nenhuma raid aberta sua agora."
             : $"{first.Inst}{(string.IsNullOrEmpty(first.When) ? "" : " · " + first.When)} ({first.Players} inscritos)";
-        return new(InboxStatus.Ok, wrote, first, raids.Count, msg) { Raids = raids, PollSeconds = result.PollSeconds };
+        return new(InboxStatus.Ok, wrote, first, raids.Count, msg) { Raids = raids, PollSeconds = result.PollSeconds, LatestApp = result.Payload.App };
     }
 }

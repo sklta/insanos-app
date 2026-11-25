@@ -290,6 +290,8 @@ try
         Ok(Updater.Sha256Of(appExe) == payloadSha, "calcula o SHA-256 do arquivo");
     }
     Ok(new AppSettings().AutoUpdate, "atualizar sozinho vem ligado");
+    Ok(InboxApi.Parse("{\"v\":1,\"raids\":[],\"app\":\"0.2.4\"}")?.App == "0.2.4" && InboxApi.Parse("{\"v\":1,\"raids\":[]}")?.App is null,
+        "lê a versão nova que o bot avisa (e funciona sem ela)");
 
     // ---------- trava: só trabalha com o WoW Forever aberto ----------
     var gameAddons = @"C:\Jogos\World of Warcraft\_forever_\Interface\AddOns";
