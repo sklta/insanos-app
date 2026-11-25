@@ -4,7 +4,7 @@ App da guilda **INSANOS** (WoW Forever) para Windows. Ele leva as raids marcadas
 [Insanos Guild Sync](https://www.curseforge.com/wow/addons/insanos-guild-sync), sem precisar copiar e colar a chave
 `!NILBAS`. É para oficiais e líderes de raid. Usar é opcional: colar a chave no addon continua funcionando igual.
 
-> **Ainda em testes.** Quando sair, o `.exe` fica em [Releases](../../releases/latest).
+> **Baixar:** o `.exe` da versão mais nova está em [Releases](../../releases/latest). Não precisa instalar nada.
 
 ## Como funciona
 
