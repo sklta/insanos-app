@@ -1,3 +1,15 @@
+<p align="center">
+  <img src="docs/insanos-nome.webp" alt="INSANOS" width="440">
+  &nbsp;&nbsp;
+  <img src="docs/insanos-brasao.webp" alt="Brasão da guilda INSANOS" width="210">
+</p>
+
+<p align="center">
+  <a href="https://insanos.discloud.app"><img alt="Site da guilda" src="https://img.shields.io/badge/Site-insanos.discloud.app-d8352c?style=for-the-badge&amp;logo=googlechrome&amp;logoColor=white"></a>
+  <a href="https://discord.gg/BszvVez4H"><img alt="Discord da guilda" src="https://img.shields.io/badge/Discord-entrar_na_guilda-5865F2?style=for-the-badge&amp;logo=discord&amp;logoColor=white"></a>
+  <a href="LICENSE"><img alt="Licença MIT" src="https://img.shields.io/badge/Licen%C3%A7a-MIT-ffb347?style=for-the-badge"></a>
+</p>
+
 # App Insanos (PC)
 
 App da guilda **INSANOS** (WoW Forever) para Windows. Ele leva as raids marcadas no Discord direto para o addon
