@@ -51,6 +51,13 @@ internal static class Program
         }
 
         using var single = new Mutex(true, @"Local\InsanosApp", out var first);
+        var updated = args.Contains("--updated");
+        // depois de uma atualização, a versão antiga ainda está fechando: espera ela soltar a vez
+        if (!first && updated)
+        {
+            try { first = single.WaitOne(TimeSpan.FromSeconds(20)); }
+            catch (AbandonedMutexException) { first = true; }
+        }
         if (!first)
         {
             MessageBox.Show("O App Insanos já está aberto: procure o ícone perto do relógio.", "App Insanos", MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -58,6 +65,7 @@ internal static class Program
         }
 
         ApplicationConfiguration.Initialize();
+        if (Environment.ProcessPath is { } exe) Updater.CleanUp(exe);
         using var http = InboxApi.CreateClient(Version);
         var settings = AppSettings.Load();
         var fromWindows = args.Contains("--tray");
@@ -76,6 +84,7 @@ internal static class Program
             using var setup = new SetupForm(settings, http);
             if (setup.ShowDialog() != DialogResult.OK) return;
         }
-        Application.Run(new TrayApp(settings, http));
+        Application.Run(new TrayApp(settings, http, updated));
+        try { single.ReleaseMutex(); } catch (ApplicationException) { }
     }
 }

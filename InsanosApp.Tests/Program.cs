@@ -199,6 +199,97 @@ try
     moved.Headers.Location = new Uri("https://outro.test/v1/inbox");
     Ok((await InboxApi.FetchAsync(InboxApi.CreateClient("t", new FakeHandler(_ => moved)), "https://x.test", key)).Status == InboxStatus.ServerError,
         "redirecionamento não é seguido");
+
+    // ---------- atualização automática ----------
+    Ok(Updater.ParseVersion("v0.2.0") == new Version(0, 2, 0) && Updater.ParseVersion("0.3") == new Version(0, 3, 0), "lê a versão da tag");
+    Ok(Updater.ParseVersion("v0.2.0-beta.1") is null && Updater.ParseVersion("lixo") is null && Updater.ParseVersion(null) is null, "pré-lançamento e lixo: não atualiza");
+    Ok(Updater.IsNewer(new Version(0, 2, 0), new Version(0, 1, 0)) && !Updater.IsNewer(new Version(0, 1, 0), new Version(0, 1, 0))
+        && !Updater.IsNewer(new Version(0, 1, 0), new Version(0, 2, 0)), "só versão maior conta como nova (nada de voltar versão)");
+    Ok(Updater.AllowedUrl("https://github.com/sklta/insanos-app/releases/download/v0.2.0/x.exe") && Updater.AllowedUrl("https://objects.githubusercontent.com/a")
+        && !Updater.AllowedUrl("http://github.com/a") && !Updater.AllowedUrl("https://github.com.mal.test/a") && !Updater.AllowedUrl("https://mal.test/a"),
+        "download só por HTTPS e do GitHub");
+
+    string Rel(string tag, string sigName, string host = "https://github.com", bool pre = false, long size = 1000) =>
+        System.Text.Json.JsonSerializer.Serialize(new
+        {
+            tag_name = tag, prerelease = pre, draft = false, html_url = "https://github.com/sklta/insanos-app/releases/tag/" + tag,
+            assets = new object[]
+            {
+                new { name = "InsanosApp-0.2.0.exe", size, browser_download_url = host + "/d/InsanosApp-0.2.0.exe" },
+                new { name = sigName, size = 96, browser_download_url = host + "/d/" + sigName }
+            }
+        });
+    var rel = Updater.ParseRelease(Rel("v0.2.0", "InsanosApp-0.2.0.exe.sig"));
+    Ok(rel is { } && rel.Version == new Version(0, 2, 0) && rel.ExeUrl.EndsWith("InsanosApp-0.2.0.exe") && rel.SigUrl.EndsWith(".sig") && rel.ExeSize == 1000,
+        "lê o release com o .exe e o .sig");
+    Ok(Updater.ParseRelease(Rel("v0.2.0", "outro.sig")) is null, "release sem a assinatura: não atualiza");
+    Ok(Updater.ParseRelease(Rel("v0.2.0", "InsanosApp-0.2.0.exe.sig", host: "https://mal.test")) is null, "release apontando para fora do GitHub: não atualiza");
+    Ok(Updater.ParseRelease(Rel("v0.2.0", "InsanosApp-0.2.0.exe.sig", pre: true)) is null, "pré-lançamento: não atualiza");
+    Ok(Updater.ParseRelease(Rel("v0.2.0", "InsanosApp-0.2.0.exe.sig", size: 900L * 1024 * 1024)) is null, "arquivo grande demais: não atualiza");
+    Ok(Updater.ParseRelease("{quebrado") is null, "resposta estragada não quebra");
+
+    using (var pk = System.Security.Cryptography.ECDsa.Create())
+    {
+        pk.ImportSubjectPublicKeyInfo(Convert.FromBase64String(Updater.PublicKey), out _);
+        Ok(pk.KeySize == 256, "a chave pública do app é ECDSA P-256 válida");
+    }
+
+    using (var ec = System.Security.Cryptography.ECDsa.Create(System.Security.Cryptography.ECCurve.NamedCurves.nistP256))
+    {
+        var pub = Convert.ToBase64String(ec.ExportSubjectPublicKeyInfo());
+        string Sign(Version v, string sha) => Convert.ToBase64String(ec.SignData(Updater.SignedMessage(v, sha), System.Security.Cryptography.HashAlgorithmName.SHA256));
+        var hash = new string('a', 64);
+        var sig = Sign(new Version(0, 2, 0), hash);
+        Ok(Updater.VerifySignature(new Version(0, 2, 0), hash, sig, pub), "assinatura certa: aceita");
+        Ok(!Updater.VerifySignature(new Version(0, 2, 0), new string('b', 64), sig, pub), "outro arquivo com a mesma assinatura: recusa");
+        Ok(!Updater.VerifySignature(new Version(0, 3, 0), hash, sig, pub), ".exe antigo apresentado como versão nova: recusa");
+        Ok(!Updater.VerifySignature(new Version(0, 2, 0), hash, sig), "assinado por outra chave (não a do app): recusa");
+        Ok(!Updater.VerifySignature(new Version(0, 2, 0), hash, "lixo", pub), "assinatura estragada: recusa sem quebrar");
+
+        // download de ponta a ponta com um GitHub de mentira: o .exe passa por um redirecionamento, como no de verdade
+        var updDir = Path.Combine(tmp.FullName, "upd");
+        Directory.CreateDirectory(updDir);
+        var appExe = Path.Combine(updDir, "InsanosApp.exe");
+        File.WriteAllText(appExe, "velho");
+        var payload = Encoding.UTF8.GetBytes("exe novo de verdade");
+        var payloadSha = Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(payload));
+        HttpClient Hub(string sigText, string redirectTo) => InboxApi.CreateClient("t", new FakeHandler(req =>
+        {
+            var u = req.RequestUri!.ToString();
+            if (u.EndsWith(".exe") && u.StartsWith("https://github.com/"))
+            {
+                var moved = new HttpResponseMessage(HttpStatusCode.Found);
+                moved.Headers.Location = new Uri(redirectTo);
+                return moved;
+            }
+            if (u.StartsWith("https://objects.githubusercontent.com/")) return new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(payload) };
+            if (u.EndsWith(".sig")) return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(sigText) };
+            return new HttpResponseMessage(HttpStatusCode.NotFound);
+        }));
+        var info = new ReleaseInfo(new Version(0, 2, 0), Updater.ReleasesPage, "https://github.com/d/InsanosApp-0.2.0.exe",
+            "https://github.com/d/InsanosApp-0.2.0.exe.sig", payload.Length);
+        var good = Sign(new Version(0, 2, 0), payloadSha);
+
+        var ready = await Updater.PrepareAsync(Hub(good, "https://objects.githubusercontent.com/x"), info, appExe, default, pub);
+        Ok(ready.Step == UpdateStep.Ready && ready.File is { } f && File.ReadAllBytes(f).SequenceEqual(payload), "baixa, segue o redirecionamento e aceita o .exe assinado");
+        var badSig = await Updater.PrepareAsync(Hub(Sign(new Version(0, 2, 0), new string('c', 64)), "https://objects.githubusercontent.com/x"), info, appExe, default, pub);
+        Ok(badSig.Step == UpdateStep.BadSignature && !File.Exists(appExe + ".download"), "assinatura que não bate: recusa e apaga o que baixou");
+        var evil = await Updater.PrepareAsync(Hub(good, "https://mal.test/x.exe"), info, appExe, default, pub);
+        Ok(evil.Step == UpdateStep.DownloadFailed && !File.Exists(appExe + ".download"), "redirecionamento para fora do GitHub: não baixa");
+        var shortInfo = info with { ExeSize = payload.Length + 5 };
+        var cut = await Updater.PrepareAsync(Hub(good, "https://objects.githubusercontent.com/x"), shortInfo, appExe, default, pub);
+        Ok(cut.Step == UpdateStep.DownloadFailed, "tamanho diferente do anunciado: não aceita");
+
+        // troca do arquivo
+        ready = await Updater.PrepareAsync(Hub(good, "https://objects.githubusercontent.com/x"), info, appExe, default, pub); // os testes acima apagaram o download
+        Ok(Updater.Swap(appExe, ready.File!) && File.ReadAllBytes(appExe).SequenceEqual(payload) && File.ReadAllText(appExe + ".old") == "velho",
+            "troca: o novo entra e o antigo vira .old");
+        Updater.CleanUp(appExe);
+        Ok(!File.Exists(appExe + ".old") && File.Exists(appExe), "na abertura seguinte o .old é apagado");
+        Ok(!Updater.Swap(appExe, Path.Combine(updDir, "nao-existe.exe")) && File.ReadAllBytes(appExe).SequenceEqual(payload), "troca que falha deixa o arquivo de antes");
+        Ok(Updater.Sha256Of(appExe) == payloadSha, "calcula o SHA-256 do arquivo");
+    }
+    Ok(new AppSettings().AutoUpdate, "atualizar sozinho vem ligado");
 }
 finally
 {

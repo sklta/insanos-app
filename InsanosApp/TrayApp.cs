@@ -18,8 +18,12 @@ internal sealed class TrayApp : ApplicationContext
     private DateTime _nextCheck = DateTime.Now;
     private bool _busy;
     private int _failures;
+    private readonly System.Windows.Forms.Timer _updateTimer = new();
+    private bool _updating;
+    private Version? _announced;        // versão nova já avisada (para não repetir o balão)
+    private Action? _balloonClick;      // o que o clique no balão faz (padrão: abrir o status)
 
-    public TrayApp(AppSettings settings, HttpClient http)
+    public TrayApp(AppSettings settings, HttpClient http, bool justUpdated = false)
     {
         _settings = settings;
         _http = http;
@@ -33,12 +37,13 @@ internal sealed class TrayApp : ApplicationContext
         menu.Items.Add("Abrir a pasta do addon", null, (_, _) => OpenAddonFolder());
         menu.Items.Add("Abrir o site da guilda", null, (_, _) => Links.Open(Links.Site));
         menu.Items.Add("Boas-vindas e links", null, (_, _) => ShowWelcome());
+        menu.Items.Add("Procurar atualização", null, async (_, _) => await CheckUpdateAsync(manual: true));
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add("Sair", null, (_, _) => ExitThread());
 
         _icon = new NotifyIcon { Icon = Theme.AppIcon(), Text = "App Insanos", ContextMenuStrip = menu, Visible = true };
         _icon.MouseClick += (_, e) => { if (e.Button == MouseButtons.Left) ToggleStatus(); };
-        _icon.BalloonTipClicked += (_, _) => ShowStatus();
+        _icon.BalloonTipClicked += (_, _) => { var a = _balloonClick ?? ShowStatus; _balloonClick = null; a(); };
 
         _status = new StatusForm(View);
         _status.RefreshRequested += async (_, _) => await SyncAsync(manual: true);
@@ -50,6 +55,94 @@ internal sealed class TrayApp : ApplicationContext
         _timer.Tick += async (_, _) => await SyncAsync(manual: false);
         _timer.Start();
         _ = SyncAsync(manual: false);
+
+        // atualização: a primeira olhada 1 minuto depois de abrir, depois a cada 6 horas
+        _updateTimer.Interval = 60 * 1000;
+        _updateTimer.Tick += async (_, _) =>
+        {
+            _updateTimer.Interval = 6 * 60 * 60 * 1000;
+            await CheckUpdateAsync(manual: false);
+        };
+        _updateTimer.Start();
+        if (justUpdated)
+            Balloon(6000, "App Insanos atualizado", "Agora na versão " + Program.Version + ".", ToolTipIcon.Info);
+    }
+
+    private void Balloon(int ms, string title, string text, ToolTipIcon icon, Action? onClick = null)
+    {
+        _balloonClick = onClick;
+        _icon.ShowBalloonTip(ms, title, text, icon);
+    }
+
+    // Procura versão nova no GitHub. Com "Atualizar sozinho" ligado, baixa, confere a assinatura, troca o .exe e
+    // reabre; desligado (ou numa pasta sem permissão), só avisa com o link do download.
+    private async Task CheckUpdateAsync(bool manual)
+    {
+        if (_updating) return;
+        _updating = true;
+        try
+        {
+            using var cts = new CancellationTokenSource(TimeSpan.FromMinutes(10));
+            var current = Version.Parse(Program.Version);
+            var r = await Updater.CheckAsync(_http, cts.Token);
+            if (r is null)
+            {
+                if (manual) Balloon(5000, "App Insanos", "Não consegui ver se há versão nova agora. Tente mais tarde.", ToolTipIcon.Warning);
+                return;
+            }
+            if (!Updater.IsNewer(r.Version, current))
+            {
+                if (manual) Balloon(4000, "App Insanos", "Você já está na versão mais nova (" + Program.Version + ").", ToolTipIcon.Info);
+                return;
+            }
+            var exe = Environment.ProcessPath;
+            if ((!_settings.AutoUpdate && !manual) || exe is null)
+            {
+                if (manual || _announced != r.Version)
+                    Balloon(8000, "Versão nova do App Insanos", r.Version.ToString(3) + " disponível. Clique para baixar.", ToolTipIcon.Info, () => Links.Open(r.Page));
+                _announced = r.Version;
+                return;
+            }
+
+            var prep = await Updater.PrepareAsync(_http, r, exe, cts.Token);
+            switch (prep.Step)
+            {
+                case UpdateStep.NotWritable:
+                    Balloon(8000, "Versão nova do App Insanos", r.Version.ToString(3) + " disponível, mas não posso trocar o arquivo nesta pasta. Clique para baixar.", ToolTipIcon.Info, () => Links.Open(r.Page));
+                    return;
+                case UpdateStep.BadSignature:
+                    Balloon(8000, "Atualização recusada", "O arquivo da versão " + r.Version.ToString(3) + " não passou na conferência da assinatura e foi apagado. Avise um oficial.", ToolTipIcon.Warning);
+                    return;
+                case UpdateStep.DownloadFailed:
+                    if (manual) Balloon(5000, "App Insanos", "Não consegui baixar a versão nova agora. Tento de novo depois.", ToolTipIcon.Warning);
+                    return;
+            }
+
+            // não troca no meio de uma tela aberta (configuração, boas-vindas): tenta de novo daqui a 5 minutos
+            if (_busy || Application.OpenForms.OfType<Form>().Any(f => f.Modal))
+            {
+                Updater.CleanUp(exe);
+                _updateTimer.Interval = 5 * 60 * 1000;
+                return;
+            }
+            if (!Updater.Swap(exe, prep.File!))
+            {
+                Updater.CleanUp(exe);
+                Balloon(8000, "Versão nova do App Insanos", "Não consegui trocar o arquivo. Clique para baixar a " + r.Version.ToString(3) + ".", ToolTipIcon.Warning, () => Links.Open(r.Page));
+                return;
+            }
+            try
+            {
+                Process.Start(new ProcessStartInfo(exe) { UseShellExecute = false, ArgumentList = { "--tray", "--updated" } });
+            }
+            catch (Exception e) when (e is System.ComponentModel.Win32Exception or InvalidOperationException)
+            {
+                Balloon(8000, "App Insanos", "A versão nova foi instalada. Abra o app de novo para usar.", ToolTipIcon.Info);
+                return;
+            }
+            ExitThread();
+        }
+        finally { _updating = false; }
     }
 
     private StatusView View() => new()
@@ -160,6 +253,7 @@ internal sealed class TrayApp : ApplicationContext
     protected override void ExitThreadCore()
     {
         _timer.Stop();
+        _updateTimer.Stop();
         _status.Close();
         _icon.Visible = false;
         _icon.Dispose();

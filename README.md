@@ -22,9 +22,13 @@ O código deste repositório é todo o app: dá para ler cada linha. O resumo do
 
 **O que o app faz**
 
-- **Conversa com um lugar só:** `https://insanos.discloud.app`, o bot da guilda
-  ([`InboxApi.cs`](InsanosApp/Core/InboxApi.cs)). Ele manda a sua chave e recebe as chaves `!NILBAS` das raids que
-  você lidera.
+- **Conversa com dois lugares só:** `https://insanos.discloud.app`, o bot da guilda
+  ([`InboxApi.cs`](InsanosApp/Core/InboxApi.cs)), para mandar a sua chave e receber as chaves `!NILBAS` das raids que
+  você lidera; e o GitHub deste repositório, para ver se saiu versão nova ([`Updater.cs`](InsanosApp/Core/Updater.cs)).
+- **Se atualiza sozinho, com conferência:** a cada 6 horas o app olha os [Releases](../../releases/latest). Se
+  houver versão nova, baixa o `.exe` e só troca o arquivo se a assinatura `.sig` bater com a chave pública que vem
+  dentro do app. Essa assinatura só é feita pelo workflow de lançamento deste repositório: um `.exe` posto ali por
+  outra pessoa é recusado. Dá para desligar em "Atualizar sozinho", e aí o app só avisa.
 - **Escreve um arquivo só no jogo:** `Interface\AddOns\NilbasForever\Inbox.lua`, com essas chaves
   ([`InboxFile.cs`](InsanosApp/Core/InboxFile.cs)). Antes de escrever, joga fora tudo que não for uma chave válida
   (só letras, números e `+/=`, até 10 chaves): nada que vem da internet vira código no jogo. O addon confere tudo de

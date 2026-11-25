@@ -22,6 +22,8 @@ public sealed class AppSettings
     public int PollSeconds { get; set; } = 30;
     /// <summary>Mostrar a tela de boas-vindas quando a pessoa abre o app pelo .exe.</summary>
     public bool ShowWelcome { get; set; } = true;
+    /// <summary>Baixar e instalar sozinho as versões novas (conferidas pela assinatura). Desligado: só avisa.</summary>
+    public bool AutoUpdate { get; set; } = true;
     public long LastChangeAt { get; set; }
     public string? LastRaidLabel { get; set; }
 

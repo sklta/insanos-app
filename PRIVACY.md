@@ -15,9 +15,11 @@ Windows user can read it. Nothing in this file is sent anywhere.
 
 **What the app sends**
 
-The app talks to one address only: `https://insanos.discloud.app`, the guild's Discord bot. Each request carries your
-app key (`Authorization` header) and the app version (`User-Agent`). Like any web request, it also reveals your IP
-address to the server and its hosting provider (Discloud). The app sends no files, screenshots, passwords or other
+The app talks to two places only. The first is `https://insanos.discloud.app`, the guild's Discord bot: each request
+carries your app key (`Authorization` header) and the app version (`User-Agent`). The second is GitHub
+(`api.github.com` and `github.com`), every few hours, to look for a new version of the app and download it; those
+requests carry only the app version, never your key. Like any web request, both reveal your IP address to the server
+and its hosting provider (Discloud, GitHub). The app sends no files, screenshots, passwords or other
 personal data. It never reads game memory.
 
 **What the guild's bot stores**
@@ -56,9 +58,11 @@ e só o seu usuário do Windows consegue abrir. Nada desse arquivo é enviado pa
 
 **O que o app envia**
 
-O app conversa com um endereço só: `https://insanos.discloud.app`, o bot da guilda no Discord. Cada pedido leva a sua
-chave do app (cabeçalho `Authorization`) e a versão do app (`User-Agent`). Como qualquer acesso à internet, o servidor
-e a hospedagem (Discloud) veem o seu IP. O app não envia arquivos, imagens da tela, senhas nem outros dados pessoais.
+O app conversa com dois lugares só. O primeiro é `https://insanos.discloud.app`, o bot da guilda no Discord: cada
+pedido leva a sua chave do app (cabeçalho `Authorization`) e a versão do app (`User-Agent`). O segundo é o GitHub
+(`api.github.com` e `github.com`), de tempos em tempos, para ver se saiu versão nova do app e baixar; esses pedidos
+levam só a versão do app, nunca a sua chave. Como qualquer acesso à internet, os servidores e as hospedagens
+(Discloud, GitHub) veem o seu IP. O app não envia arquivos, imagens da tela, senhas nem outros dados pessoais.
 Ele nunca lê a memória do jogo.
 
 **O que o bot da guilda guarda**

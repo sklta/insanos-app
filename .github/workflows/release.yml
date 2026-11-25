@@ -1,6 +1,7 @@
 # Publica uma versão do app: roda os testes, gera o InsanosApp.exe a partir DESTE código, calcula a impressão
 # digital (SHA-256), registra uma atestação assinada pelo GitHub de que o .exe saiu deste repositório e deste
-# workflow, manda o .exe para o VirusTotal (se a chave estiver configurada) e cria o release com tudo isso.
+# workflow, assina o .exe para a atualização automática do app (segredo UPDATE_SIGNING_KEY), manda o .exe para o
+# VirusTotal (se a chave estiver configurada) e cria o release com tudo isso.
 # Dispara com uma tag v* (por exemplo v0.1.0). Tag com hífen (v0.1.0-beta.1) sai como pré-lançamento.
 name: Release
 
@@ -47,6 +48,32 @@ jobs:
           "EXE=$exe" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
           "SHA256=$h" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
 
+      # O app só aceita uma atualização com esta assinatura (Core/Updater.cs): ECDSA P-256 sobre
+      # "insanos-app", a versão e o SHA-256 do .exe, um por linha. A chave pública está no código do app.
+      - name: Assinar para a atualização automática
+        if: ${{ !contains(github.ref_name, '-') }}
+        shell: pwsh
+        env:
+          UPDATE_SIGNING_KEY: ${{ secrets.UPDATE_SIGNING_KEY }}
+        run: |
+          if (-not $env:UPDATE_SIGNING_KEY) { throw "Falta o segredo UPDATE_SIGNING_KEY: sem ele os apps não aceitam a atualização." }
+          $ec = [System.Security.Cryptography.ECDsa]::Create()
+          $ec.ImportFromPem($env:UPDATE_SIGNING_KEY)
+          $pv = [Version]$env:VERSION
+          $ver = "{0}.{1}.{2}" -f $pv.Major, $pv.Minor, [Math]::Max(0, $pv.Build)   # sempre 3 partes, como o app
+          $msg = [System.Text.Encoding]::UTF8.GetBytes("insanos-app`n$ver`n$env:SHA256")
+          $sig = $ec.SignData($msg, [System.Security.Cryptography.HashAlgorithmName]::SHA256)
+          [System.IO.File]::WriteAllText("$env:EXE.sig", [Convert]::ToBase64String($sig))
+          # confere com a chave pública que vai no app, antes de publicar
+          $pub = (Select-String -Path InsanosApp/Core/Updater.cs -Pattern '"(MFkw[A-Za-z0-9+/=]+)"').Matches[0].Groups[1].Value
+          $check = [System.Security.Cryptography.ECDsa]::Create()
+          $read = 0
+          $check.ImportSubjectPublicKeyInfo([Convert]::FromBase64String($pub), [ref]$read)
+          if (-not $check.VerifyData($msg, $sig, [System.Security.Cryptography.HashAlgorithmName]::SHA256)) {
+            throw "A assinatura não bate com a chave pública do app (Core/Updater.cs)."
+          }
+          "SIGNED=1" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
+
       - name: Atestação de origem (assinada pelo GitHub)
         uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2.4.0
         with:
@@ -79,9 +106,12 @@ jobs:
           - **Atestação do GitHub:** este .exe foi gerado pelo workflow ``release.yml`` a partir do commit ``${{ github.sha }}``.
             Para conferir: ``gh attestation verify .\$env:EXE -R ${{ github.repository }}``
           $vt
+          - **Atualização automática:** o ``.sig`` é a assinatura que o próprio app confere antes de se atualizar sozinho.
 
           Leia a seção **Segurança** do README para saber o que o app faz e o que não faz.
           "@ -replace '(?m)^          ', ''
-          $a = @("${{ github.ref_name }}", $env:EXE, "$env:EXE.sha256", '--title', "App Insanos $env:VERSION", '--notes', $notes)
+          $files = @($env:EXE, "$env:EXE.sha256")
+          if ($env:SIGNED) { $files += "$env:EXE.sig" }
+          $a = @("${{ github.ref_name }}") + $files + @('--title', "App Insanos $env:VERSION", '--notes', $notes)
           if ($env:VERSION -match '-') { $a += '--prerelease' }
           gh release create @a

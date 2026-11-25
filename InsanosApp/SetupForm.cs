@@ -14,6 +14,7 @@ internal sealed class SetupForm : ForgeWindow
     private readonly Segmented _addon = new();
     private readonly InputBox _key = new();
     private readonly ToggleSwitch _startup = new();
+    private readonly ToggleSwitch _autoUpdate = new();
     private readonly Label _status = new() { AutoSize = false, BackColor = Color.Transparent };
     private readonly ForgeButton _save = new("Salvar e conectar", primary: true);
 
@@ -62,6 +63,10 @@ internal sealed class SetupForm : ForgeWindow
         _startup.Checked = Startup.IsEnabled();
         var startupLabel = new Label { Text = "Abrir junto com o Windows", ForeColor = Theme.Bone, AutoSize = true, BackColor = Color.Transparent, Location = new Point(70, 378), Cursor = Cursors.Hand };
         startupLabel.Click += (_, _) => _startup.Checked = !_startup.Checked;
+        _autoUpdate.Location = new Point(286, 378);
+        _autoUpdate.Checked = settings.AutoUpdate;
+        var updateLabel = new Label { Text = "Atualizar sozinho", ForeColor = Theme.Bone, AutoSize = true, BackColor = Color.Transparent, Location = new Point(332, 378), Cursor = Cursors.Hand };
+        updateLabel.Click += (_, _) => _autoUpdate.Checked = !_autoUpdate.Checked;
 
         _status.SetBounds(24, 410, 476, 40);
 
@@ -71,7 +76,7 @@ internal sealed class SetupForm : ForgeWindow
         var cancel = new ForgeButton("Cancelar") { Location = new Point(214, 458), Size = new Size(110, 38) };
         cancel.Click += (_, _) => { DialogResult = DialogResult.Cancel; Close(); };
 
-        Controls.AddRange([title, sub, step1, step2, _startup, startupLabel, _status, _save, cancel]);
+        Controls.AddRange([title, sub, step1, step2, _startup, startupLabel, _autoUpdate, updateLabel, _status, _save, cancel]);
         foreach (var c in new Control[] { title, sub, step1, step2 }) MakeDraggable(c);
 
         _dir.Box.Text = settings.AddonsDir ?? WowLocator.Detect() ?? "";
@@ -132,6 +137,7 @@ internal sealed class SetupForm : ForgeWindow
         _settings.AddonsDir = dir;
         _settings.AddonFolder = addon;
         _settings.ProtectedKey = KeyVault.Protect(key);
+        _settings.AutoUpdate = _autoUpdate.Checked;
         _settings.Save();
         try { Startup.Set(_startup.Checked); } catch (UnauthorizedAccessException) { }
         DialogResult = DialogResult.OK;
