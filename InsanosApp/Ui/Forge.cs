@@ -30,6 +30,15 @@ internal static class Paint2
 
     public static Font Ui(float size, FontStyle style = FontStyle.Regular) => new("Segoe UI", size, style);
     public static Font Semi(float size) => new("Segoe UI Semibold", size);
+
+    /// <summary>Ícones do próprio Windows (Segoe Fluent Icons no 11, Segoe MDL2 Assets no 10; os códigos são os mesmos).</summary>
+    public static Font Icons(float size)
+    {
+        var f = new Font("Segoe Fluent Icons", size);
+        if (f.Name == "Segoe Fluent Icons") return f;
+        f.Dispose();
+        return new Font("Segoe MDL2 Assets", size);
+    }
 }
 
 /// <summary>Cartão de ferro com borda fina; Hot = borda em brasa (o destaque).</summary>
@@ -124,6 +133,8 @@ internal sealed class ForgeButton : Control
 {
     private bool _hover, _down;
     [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)] public bool Primary { get; set; }
+    /// <summary>Ícone do Windows desenhado à esquerda do texto (opcional).</summary>
+    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)] public string? Glyph { get; set; }
 
     public ForgeButton(string text, bool primary = false)
     {
@@ -179,7 +190,21 @@ internal sealed class ForgeButton : Control
             g.DrawPath(pen, path);
         }
         var color = Primary ? Color.FromArgb(0x2b, 0x09, 0x04) : (Enabled ? (_hover ? Color.White : Theme.Bone) : Theme.Ash);
-        TextRenderer.DrawText(g, Text, Font, Rectangle.Round(r), color, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+        if (string.IsNullOrEmpty(Glyph))
+        {
+            TextRenderer.DrawText(g, Text, Font, Rectangle.Round(r), color, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+            return;
+        }
+        // ícone + texto, os dois centralizados juntos
+        using var icons = Paint2.Icons(Font.Size + 1.5f);
+        var flags = TextFormatFlags.NoPadding | TextFormatFlags.VerticalCenter;
+        var gw = TextRenderer.MeasureText(g, Glyph, icons, Size.Empty, flags).Width;
+        var tw = TextRenderer.MeasureText(g, Text, Font, Size.Empty, flags).Width;
+        var x = (int)(r.X + (r.Width - gw - 8 - tw) / 2);
+        var y = (int)r.Y;
+        var h = (int)r.Height;
+        TextRenderer.DrawText(g, Glyph, icons, new Rectangle(x, y, gw + 2, h), Primary ? color : Theme.Gold, flags);
+        TextRenderer.DrawText(g, Text, Font, new Rectangle(x + gw + 8, y, tw + 4, h), color, flags);
     }
 }
 

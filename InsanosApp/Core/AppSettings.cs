@@ -20,6 +20,8 @@ public sealed class AppSettings
     public string ApiBase { get; init; } = InboxApi.DefaultBase;
     /// <summary>Intervalo normal entre as verificações, em segundos (perto da raid cai para 15 s).</summary>
     public int PollSeconds { get; set; } = 30;
+    /// <summary>Mostrar a tela de boas-vindas quando a pessoa abre o app pelo .exe.</summary>
+    public bool ShowWelcome { get; set; } = true;
     public long LastChangeAt { get; set; }
     public string? LastRaidLabel { get; set; }
 

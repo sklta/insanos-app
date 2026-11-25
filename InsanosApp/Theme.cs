@@ -24,6 +24,9 @@ internal static class Theme
     /// <summary>O nome INSANOS em fogo, do kit visual (o mesmo do addon e do site).</summary>
     public static Image? Wordmark() => Resource("InsanosApp.wordmark.png");
 
+    /// <summary>O brasão da guilda (o javali em chamas, o mesmo do site).</summary>
+    public static Image? Crest() => Resource("InsanosApp.brasao.png");
+
     private static Image? Resource(string name)
     {
         using var s = typeof(Theme).Assembly.GetManifestResourceStream(name);

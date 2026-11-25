@@ -1,4 +1,5 @@
-// App Insanos no PC: uma instância só, abre a configuração na primeira vez e depois fica perto do relógio.
+// App Insanos no PC: uma instância só. Aberto pelo .exe, mostra as boas-vindas (se a pessoa não desligou) e, na
+// primeira vez, a configuração; depois fica perto do relógio. Aberto junto com o Windows (--tray), vai direto.
 using InsanosApp.Core;
 
 namespace InsanosApp;
@@ -34,6 +35,7 @@ internal static class Program
                 sf.KeepOpen();
                 f = sf;
             }
+            else if (args[1] == "welcome") f = new WelcomeForm(configured: false, showNextTime: true);
             else f = new SetupForm(new AppSettings(), h);
             f.StartPosition = FormStartPosition.Manual;
             f.Location = new Point(-4000, -4000);
@@ -58,6 +60,17 @@ internal static class Program
         ApplicationConfiguration.Initialize();
         using var http = InboxApi.CreateClient(Version);
         var settings = AppSettings.Load();
+        var fromWindows = args.Contains("--tray");
+        if (!fromWindows && (settings.ShowWelcome || !settings.IsComplete))
+        {
+            using var hello = new WelcomeForm(settings.IsComplete, settings.ShowWelcome);
+            hello.ShowDialog();
+            if (hello.ShowNextTime != settings.ShowWelcome)
+            {
+                settings.ShowWelcome = hello.ShowNextTime;
+                try { settings.Save(); } catch (IOException) { } catch (UnauthorizedAccessException) { }
+            }
+        }
         if (!settings.IsComplete)
         {
             using var setup = new SetupForm(settings, http);

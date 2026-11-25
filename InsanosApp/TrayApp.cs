@@ -8,7 +8,6 @@ namespace InsanosApp;
 
 internal sealed class TrayApp : ApplicationContext
 {
-    public const string Site = "https://insanos.discloud.app";
     private readonly AppSettings _settings;
     private readonly HttpClient _http;
     private readonly NotifyIcon _icon;
@@ -32,7 +31,8 @@ internal sealed class TrayApp : ApplicationContext
         menu.Items.Add("Atualizar agora", null, async (_, _) => await SyncAsync(manual: true));
         menu.Items.Add("Configurar…", null, (_, _) => OpenSetup());
         menu.Items.Add("Abrir a pasta do addon", null, (_, _) => OpenAddonFolder());
-        menu.Items.Add("Abrir o site da guilda", null, (_, _) => Open(Site));
+        menu.Items.Add("Abrir o site da guilda", null, (_, _) => Links.Open(Links.Site));
+        menu.Items.Add("Boas-vindas e links", null, (_, _) => ShowWelcome());
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add("Sair", null, (_, _) => ExitThread());
 
@@ -43,7 +43,7 @@ internal sealed class TrayApp : ApplicationContext
         _status = new StatusForm(View);
         _status.RefreshRequested += async (_, _) => await SyncAsync(manual: true);
         _status.FolderRequested += (_, _) => OpenAddonFolder();
-        _status.SiteRequested += (_, _) => Open(Site);
+        _status.SiteRequested += (_, _) => Links.Open(Links.Site);
         _status.SetupRequested += (_, _) => { _status.Hide(); OpenSetup(); };
 
         _timer.Interval = Math.Max(15, _settings.PollSeconds) * 1000;
@@ -138,12 +138,23 @@ internal sealed class TrayApp : ApplicationContext
     private void OpenAddonFolder()
     {
         if (_settings.AddonsDir is { } d && Directory.Exists(Path.Combine(d, _settings.AddonFolder)))
-            Open(Path.Combine(d, _settings.AddonFolder));
+            Links.Open(Path.Combine(d, _settings.AddonFolder));
     }
 
-    private static void Open(string target)
+    private bool _welcomeOpen;
+    private void ShowWelcome()
     {
-        try { Process.Start(new ProcessStartInfo(target) { UseShellExecute = true }); } catch (Exception) { }
+        if (_welcomeOpen) return;
+        _welcomeOpen = true;
+        try
+        {
+            using var f = new WelcomeForm(configured: true, _settings.ShowWelcome);
+            f.ShowDialog();
+            if (f.ShowNextTime != _settings.ShowWelcome) { _settings.ShowWelcome = f.ShowNextTime; _settings.Save(); }
+        }
+        catch (IOException) { }
+        catch (UnauthorizedAccessException) { }
+        finally { _welcomeOpen = false; }
     }
 
     protected override void ExitThreadCore()

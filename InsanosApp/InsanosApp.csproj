@@ -21,6 +21,7 @@
   <ItemGroup>
     <EmbeddedResource Include="app.ico" LogicalName="InsanosApp.app.ico" />
     <EmbeddedResource Include="wordmark.png" LogicalName="InsanosApp.wordmark.png" />
+    <EmbeddedResource Include="brasao.png" LogicalName="InsanosApp.brasao.png" />
   </ItemGroup>
 
 </Project>

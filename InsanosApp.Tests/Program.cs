@@ -165,11 +165,12 @@ try
 
     // ---------- configurações ----------
     var cfgDir = Path.Combine(tmp.FullName, "cfg");
-    new AppSettings { AddonsDir = addons, AddonFolder = "NilbasForeverTeste", ProtectedKey = "abc", PollSeconds = 45 }.Save(cfgDir);
+    new AppSettings { AddonsDir = addons, AddonFolder = "NilbasForeverTeste", ProtectedKey = "abc", PollSeconds = 45, ShowWelcome = false }.Save(cfgDir);
     var back = AppSettings.Load(cfgDir);
-    Ok(back.AddonsDir == addons && back.AddonFolder == "NilbasForeverTeste" && back.PollSeconds == 45 && back.IsComplete, "configurações salvam e voltam");
+    Ok(back.AddonsDir == addons && back.AddonFolder == "NilbasForeverTeste" && back.PollSeconds == 45 && !back.ShowWelcome && back.IsComplete, "configurações salvam e voltam");
     File.WriteAllText(Path.Combine(cfgDir, "config.json"), "{quebrado");
     Ok(!AppSettings.Load(cfgDir).IsComplete, "config.json estragado volta ao começo sem quebrar");
+    Ok(new AppSettings().ShowWelcome, "as boas-vindas vêm ligadas na primeira vez");
 
     // ---------- o config.json não manda no endereço nem na pasta (qualquer programa do usuário mexe nele) ----------
     void Cfg(object o) => File.WriteAllText(Path.Combine(cfgDir, "config.json"), System.Text.Json.JsonSerializer.Serialize(o));
