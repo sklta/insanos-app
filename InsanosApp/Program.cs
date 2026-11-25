@@ -36,6 +36,14 @@ internal static class Program
                 f = sf;
             }
             else if (args[1] == "welcome") f = new WelcomeForm(configured: false, showNextTime: true);
+            else if (args[1] is "toast-baixando" or "toast-pronto")
+            {
+                var t = new InsanosApp.Ui.UpdateToast();
+                if (args[1] == "toast-baixando") t.Working("Atualizando o App Insanos", "Baixando a versão 0.2.2 · 64%", 0.64, "Depois confere a assinatura e reabre sozinho.");
+                else t.Finish(InsanosApp.Ui.UpdateToast.Kind.Done, "App Insanos atualizado", "Agora na versão 0.2.2 · assinatura conferida", "Ver novidades", () => { });
+                t.Hide();
+                f = t;
+            }
             else f = new SetupForm(new AppSettings(), h);
             f.StartPosition = FormStartPosition.Manual;
             f.Location = new Point(-4000, -4000);

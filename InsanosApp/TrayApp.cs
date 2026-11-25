@@ -24,6 +24,10 @@ internal sealed class TrayApp : ApplicationContext
     private bool _updating;
     private Version? _announced;        // versão nova já avisada (para não repetir o balão)
     private Action? _balloonClick;      // o que o clique no balão faz (padrão: abrir o status)
+    private UpdateToast? _toast;        // a janelinha da atualização, em cima do relógio
+
+    private UpdateToast Toast() => _toast is { IsDisposed: false } t ? t : (_toast = new UpdateToast());
+    private static void OpenRelease(string page) => Links.Open(page);
 
     public TrayApp(AppSettings settings, HttpClient http, bool justUpdated = false)
     {
@@ -67,7 +71,8 @@ internal sealed class TrayApp : ApplicationContext
         };
         _updateTimer.Start();
         if (justUpdated)
-            Balloon(6000, "App Insanos atualizado", "Agora na versão " + Program.Version + ".", ToolTipIcon.Info);
+            Toast().Finish(UpdateToast.Kind.Done, "App Insanos atualizado", "Agora na versão " + Program.Version + " · assinatura conferida",
+                "Ver novidades", () => OpenRelease("https://github.com/" + Updater.Repo + "/releases/tag/v" + Program.Version));
     }
 
     private void Balloon(int ms, string title, string text, ToolTipIcon icon, Action? onClick = null)
@@ -89,34 +94,42 @@ internal sealed class TrayApp : ApplicationContext
             var r = await Updater.CheckAsync(_http, cts.Token);
             if (r is null)
             {
-                if (manual) Balloon(5000, "App Insanos", "Não consegui ver se há versão nova agora. Tente mais tarde.", ToolTipIcon.Warning);
+                if (manual) Toast().Finish(UpdateToast.Kind.Warning, "Não deu para procurar", "O GitHub não respondeu agora. Tente mais tarde.", seconds: 6);
                 return;
             }
             if (!Updater.IsNewer(r.Version, current))
             {
-                if (manual) Balloon(4000, "App Insanos", "Você já está na versão mais nova (" + Program.Version + ").", ToolTipIcon.Info);
+                if (manual) Toast().Finish(UpdateToast.Kind.Done, "Tudo em dia", "Você já está na versão mais nova (" + Program.Version + ").", seconds: 5);
                 return;
             }
+            var v = r.Version.ToString(3);
             var exe = Environment.ProcessPath;
             if ((!_settings.AutoUpdate && !manual) || exe is null)
             {
                 if (manual || _announced != r.Version)
-                    Balloon(8000, "Versão nova do App Insanos", r.Version.ToString(3) + " disponível. Clique para baixar.", ToolTipIcon.Info, () => Links.Open(r.Page));
+                    Toast().Finish(UpdateToast.Kind.Warning, "Versão nova: " + v, "O app não está se atualizando sozinho.", "Baixar", () => OpenRelease(r.Page), 15);
                 _announced = r.Version;
                 return;
             }
 
-            var prep = await Updater.PrepareAsync(_http, r, exe, cts.Token);
+            const string foot = "Depois confere a assinatura e reabre sozinho.";
+            Toast().Working("Atualizando o App Insanos", "Baixando a versão " + v, 0, foot);
+            var progress = new Progress<double>(p =>
+            {
+                if (p >= 1) Toast().Working("Atualizando o App Insanos", "Conferindo a assinatura…", 1, foot);
+                else Toast().Working("Atualizando o App Insanos", "Baixando a versão " + v + " · " + (int)(p * 100) + "%", p, foot);
+            });
+            var prep = await Updater.PrepareAsync(_http, r, exe, cts.Token, progress: progress);
             switch (prep.Step)
             {
                 case UpdateStep.NotWritable:
-                    Balloon(8000, "Versão nova do App Insanos", r.Version.ToString(3) + " disponível, mas não posso trocar o arquivo nesta pasta. Clique para baixar.", ToolTipIcon.Info, () => Links.Open(r.Page));
+                    Toast().Finish(UpdateToast.Kind.Warning, "Versão nova: " + v, "Não posso trocar o arquivo nesta pasta. Baixe à mão.", "Baixar", () => OpenRelease(r.Page), 15);
                     return;
                 case UpdateStep.BadSignature:
-                    Balloon(8000, "Atualização recusada", "O arquivo da versão " + r.Version.ToString(3) + " não passou na conferência da assinatura e foi apagado. Avise um oficial.", ToolTipIcon.Warning);
+                    Toast().Finish(UpdateToast.Kind.Warning, "Atualização recusada", "A assinatura não bateu: o arquivo foi apagado. Avise um oficial.", seconds: 15);
                     return;
                 case UpdateStep.DownloadFailed:
-                    if (manual) Balloon(5000, "App Insanos", "Não consegui baixar a versão nova agora. Tento de novo depois.", ToolTipIcon.Warning);
+                    Toast().Finish(UpdateToast.Kind.Warning, "Não deu para baixar", "A conexão falhou. Tento de novo mais tarde.", seconds: 6);
                     return;
             }
 
@@ -125,21 +138,23 @@ internal sealed class TrayApp : ApplicationContext
             {
                 Updater.CleanUp(exe);
                 _updateTimer.Interval = 5 * 60 * 1000;
+                Toast().Finish(UpdateToast.Kind.Warning, "Atualização adiada", "Feche a janela aberta do app; tento de novo em 5 minutos.", seconds: 8);
                 return;
             }
             if (!Updater.Swap(exe, prep.File!))
             {
                 Updater.CleanUp(exe);
-                Balloon(8000, "Versão nova do App Insanos", "Não consegui trocar o arquivo. Clique para baixar a " + r.Version.ToString(3) + ".", ToolTipIcon.Warning, () => Links.Open(r.Page));
+                Toast().Finish(UpdateToast.Kind.Warning, "Versão nova: " + v, "Não consegui trocar o arquivo. Baixe à mão.", "Baixar", () => OpenRelease(r.Page), 15);
                 return;
             }
+            Toast().Working("Atualizando o App Insanos", "Instalando… o app vai reabrir", 1);
             try
             {
                 Process.Start(new ProcessStartInfo(exe) { UseShellExecute = false, ArgumentList = { "--tray", "--updated" } });
             }
             catch (Exception e) when (e is System.ComponentModel.Win32Exception or InvalidOperationException)
             {
-                Balloon(8000, "App Insanos", "A versão nova foi instalada. Abra o app de novo para usar.", ToolTipIcon.Info);
+                Toast().Finish(UpdateToast.Kind.Done, "Versão " + v + " instalada", "Abra o app de novo para usar.", seconds: 15);
                 return;
             }
             ExitThread();
@@ -267,6 +282,7 @@ internal sealed class TrayApp : ApplicationContext
     {
         _timer.Stop();
         _updateTimer.Stop();
+        _toast?.Dispose();
         _status.Close();
         _icon.Visible = false;
         _icon.Dispose();

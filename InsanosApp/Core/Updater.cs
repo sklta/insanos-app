@@ -116,14 +116,15 @@ public static class Updater
     /// Baixa o .exe novo para junto do atual (InsanosApp.exe.download) e confere hash e assinatura. Só devolve Ready
     /// com um arquivo que passou nas duas; senão apaga o que baixou.
     /// </summary>
-    public static async Task<UpdatePrepared> PrepareAsync(HttpClient http, ReleaseInfo r, string exePath, CancellationToken ct = default, string publicKey = PublicKey)
+    public static async Task<UpdatePrepared> PrepareAsync(HttpClient http, ReleaseInfo r, string exePath, CancellationToken ct = default,
+        string publicKey = PublicKey, IProgress<double>? progress = null)
     {
         var dir = Path.GetDirectoryName(exePath);
         if (dir is null || !CanWrite(dir)) return new(UpdateStep.NotWritable);
         var part = exePath + ".download";
         try
         {
-            if (!await DownloadAsync(http, r.ExeUrl, part, Math.Min(MaxExeBytes, r.ExeSize), ct)) return Fail(UpdateStep.DownloadFailed);
+            if (!await DownloadAsync(http, r.ExeUrl, part, Math.Min(MaxExeBytes, r.ExeSize), ct, progress)) return Fail(UpdateStep.DownloadFailed);
             var sig = await GetSmallAsync(http, r.SigUrl, ct);
             if (sig is null) return Fail(UpdateStep.DownloadFailed);
             if (!VerifySignature(r.Version, Sha256Of(part), Encoding.ASCII.GetString(sig), publicKey)) return Fail(UpdateStep.BadSignature);
@@ -226,7 +227,8 @@ public static class Updater
         catch (Exception e) when (e is HttpRequestException or IOException or TaskCanceledException) { return null; }
     }
 
-    private static async Task<bool> DownloadAsync(HttpClient http, string url, string dest, long max, CancellationToken ct)
+    /// <summary>Baixa com limite de tamanho; progress recebe de 0 a 1 (1 = baixou tudo, falta conferir).</summary>
+    private static async Task<bool> DownloadAsync(HttpClient http, string url, string dest, long max, CancellationToken ct, IProgress<double>? progress = null)
     {
         using var res = await SendFollowing(http, url, ct);
         if (res is null || res.Content.Headers.ContentLength > max) return false;
@@ -235,12 +237,14 @@ public static class Updater
         {
             var buf = new byte[81920];
             long total = 0;
-            int n;
+            int n, lastPercent = -1;
             while ((n = await s.ReadAsync(buf, ct)) > 0)
             {
                 total += n;
                 if (total > max) return false;
                 await f.WriteAsync(buf.AsMemory(0, n), ct);
+                var percent = (int)(total * 100 / max);
+                if (percent != lastPercent) { lastPercent = percent; progress?.Report(total / (double)max); }
             }
             if (total != max) return false; // tamanho diferente do que o GitHub anunciou: arquivo incompleto ou outro
         }
