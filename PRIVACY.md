@@ -35,7 +35,8 @@ and are not saved. The hosting provider may keep its own standard connection log
 
 **Deleting your data**
 
-Run `/desvincular-app` on Discord: the key is deleted at once and stops working. Then choose "Sair" in the tray icon
+Run `/desvincular-app` on Discord: the key is deleted at once and stops working. Leaving the guild's Discord server
+also deletes it. Then choose "Sair" in the tray icon
 menu and delete the `%APPDATA%\InsanosApp` folder.
 
 **Contact**
@@ -75,7 +76,8 @@ hospedagem pode guardar os registros de conexão dela.
 
 **Como apagar os seus dados**
 
-Use `/desvincular-app` no Discord: a chave é apagada na hora e para de funcionar. Depois clique em "Sair" no menu do
+Use `/desvincular-app` no Discord: a chave é apagada na hora e para de funcionar. Sair do servidor da guilda no
+Discord também apaga. Depois clique em "Sair" no menu do
 ícone e apague a pasta `%APPDATA%\InsanosApp`.
 
 **Contato**

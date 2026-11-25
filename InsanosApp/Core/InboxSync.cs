@@ -29,6 +29,8 @@ public static class InboxSync
         }
 
         var raids = result.Payload!.Raids.Where(r => InboxFile.IsValidKey(r.Token)).ToList();
+        if (!WowLocator.IsKnownAddon(s.AddonFolder) || !WowLocator.LooksLikeAddonsDir(s.AddonsDir))
+            return new(InboxStatus.ServerError, false, null, raids.Count, "Configuração estranha: escolha a pasta do WoW Forever de novo em Configurar.");
         var path = WowLocator.InboxPath(s.AddonsDir, s.AddonFolder);
         if (!Directory.Exists(Path.GetDirectoryName(path)))
             return new(InboxStatus.ServerError, false, null, raids.Count, "Não achei o addon " + (s.AddonFolder == "NilbasForeverTeste" ? "INSANOS (teste)" : "INSANOS") + " na pasta do jogo. Ele está instalado?");

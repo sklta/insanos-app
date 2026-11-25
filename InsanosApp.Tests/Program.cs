@@ -32,7 +32,7 @@ try
     Ok(lua.Contains("NilbasForeverInbox = {") && lua.Contains("at = 1795600000,"), "o arquivo define a caixa e a hora");
     Ok(!lua.Contains("os.exit") && lua.Contains(k1) && lua.Contains(k2), "só as chaves válidas vão para o arquivo");
 
-    var addonDir = Path.Combine(tmp.FullName, "AddOns", "NilbasForever");
+    var addonDir = Path.Combine(tmp.FullName, "Interface", "AddOns", "NilbasForever");
     Directory.CreateDirectory(addonDir);
     var inbox = Path.Combine(addonDir, "Inbox.lua");
     File.WriteAllText(inbox, "NilbasForeverInbox = {}\n");
@@ -74,7 +74,7 @@ try
     Ok((await InboxApi.FetchAsync(Fake(HttpStatusCode.OK, throws: true), "https://x.test", key)).Status == InboxStatus.Offline, "sem rede: offline");
 
     // ---------- uma rodada completa ----------
-    var settings = new AppSettings { AddonsDir = Path.Combine(tmp.FullName, "AddOns"), AddonFolder = "NilbasForever", ApiBase = "https://x.test" };
+    var settings = new AppSettings { AddonsDir = Path.Combine(tmp.FullName, "Interface", "AddOns"), AddonFolder = "NilbasForever", ApiBase = "https://x.test" };
     File.WriteAllText(inbox, "NilbasForeverInbox = {}\n");
     var run = await InboxSync.RunAsync(Fake(HttpStatusCode.OK, json), settings, key, 500);
     Ok(run.Status == InboxStatus.Ok && run.Wrote && run.RaidCount == 1, "rodada: escreve a raid no addon");
@@ -170,6 +170,34 @@ try
     Ok(back.AddonsDir == addons && back.AddonFolder == "NilbasForeverTeste" && back.PollSeconds == 45 && back.IsComplete, "configurações salvam e voltam");
     File.WriteAllText(Path.Combine(cfgDir, "config.json"), "{quebrado");
     Ok(!AppSettings.Load(cfgDir).IsComplete, "config.json estragado volta ao começo sem quebrar");
+
+    // ---------- o config.json não manda no endereço nem na pasta (qualquer programa do usuário mexe nele) ----------
+    void Cfg(object o) => File.WriteAllText(Path.Combine(cfgDir, "config.json"), System.Text.Json.JsonSerializer.Serialize(o));
+    Cfg(new { AddonsDir = addons, AddonFolder = @"..\..", ApiBase = "http://mal.test", PollSeconds = 1, ProtectedKey = "abc" });
+    var odd = AppSettings.Load(cfgDir);
+    Ok(odd.AddonsDir == addons && odd.IsComplete, "o arquivo foi lido (o resto continua valendo)");
+    Ok(odd.ApiBase == InboxApi.DefaultBase, "endereço do bot vindo do arquivo é ignorado");
+    Ok(odd.AddonFolder == "NilbasForever", "nome de addon fora da lista volta para NilbasForever");
+    Ok(odd.PollSeconds == 15, "intervalo absurdo vira o mínimo");
+    odd.Save(cfgDir);
+    Ok(!File.ReadAllText(Path.Combine(cfgDir, "config.json")).Contains("ApiBase"), "o endereço nem é salvo");
+    foreach (var badDir in new[] { @"C:\Windows", @"\\servidor\Interface\AddOns", @"C:\Jogo\Interface\AddOns\..\..\Windows", @"Interface\AddOns", @"C:\Jogo\AddOns", "" })
+        Ok(!WowLocator.LooksLikeAddonsDir(badDir), "pasta recusada: " + badDir);
+    Ok(WowLocator.LooksLikeAddonsDir(addons), "pasta AddOns de verdade aceita");
+    Cfg(new { AddonsDir = @"C:\Windows", ProtectedKey = "abc" });
+    Ok(!AppSettings.Load(cfgDir).IsComplete, "pasta que não é AddOns: pede para configurar de novo");
+    var weird = new AppSettings { AddonsDir = addons, AddonFolder = "../../x" };
+    var w = await InboxSync.RunAsync(Fake(HttpStatusCode.OK, json), weird, key, 900);
+    Ok(w.Status != InboxStatus.Ok && !w.Wrote, "rodada com addon fora da lista não escreve nada");
+
+    // ---------- resposta grande demais ou redirecionada ----------
+    var huge = new string('a', 300_000);
+    Ok((await InboxApi.FetchAsync(InboxApi.CreateClient("t", new FakeHandler(_ => new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(huge) })), "https://x.test", key)).Status != InboxStatus.Ok,
+        "resposta maior que o limite é recusada sem travar");
+    var moved = new HttpResponseMessage(HttpStatusCode.Redirect);
+    moved.Headers.Location = new Uri("https://outro.test/v1/inbox");
+    Ok((await InboxApi.FetchAsync(InboxApi.CreateClient("t", new FakeHandler(_ => moved)), "https://x.test", key)).Status == InboxStatus.ServerError,
+        "redirecionamento não é seguido");
 }
 finally
 {

@@ -52,5 +52,27 @@ public static class WowLocator
 
     public static string? Detect() => Candidates().FirstOrDefault(c => InstalledAddons(c).Count > 0);
 
-    public static string InboxPath(string addonsDir, string addonFolder) => Path.Combine(addonsDir, addonFolder, "Inbox.lua");
+    /// <summary>Só as pastas do addon que o app conhece (nada de "..", barra ou outro nome).</summary>
+    public static bool IsKnownAddon(string? folder) => folder is not null && AddonFolders.Contains(folder, StringComparer.Ordinal);
+
+    /// <summary>Caminho completo de uma pasta Interface\AddOns (sem "..", sem caminho relativo nem de rede).</summary>
+    public static bool LooksLikeAddonsDir(string? dir)
+    {
+        if (string.IsNullOrWhiteSpace(dir)) return false;
+        try
+        {
+            if (!Path.IsPathFullyQualified(dir) || dir.StartsWith(@"\\") || dir.Contains("..")) return false;
+            var full = Path.GetFullPath(dir).TrimEnd('\\', '/');
+            var parent = Path.GetFileName(Path.GetDirectoryName(full) ?? "");
+            return string.Equals(Path.GetFileName(full), "AddOns", StringComparison.OrdinalIgnoreCase)
+                && string.Equals(parent, "Interface", StringComparison.OrdinalIgnoreCase);
+        }
+        catch (Exception e) when (e is ArgumentException or NotSupportedException or PathTooLongException) { return false; }
+    }
+
+    public static string InboxPath(string addonsDir, string addonFolder)
+    {
+        if (!IsKnownAddon(addonFolder)) throw new ArgumentException("pasta de addon desconhecida", nameof(addonFolder));
+        return Path.Combine(addonsDir, addonFolder, "Inbox.lua");
+    }
 }

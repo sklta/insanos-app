@@ -87,6 +87,10 @@ public static partial class InboxApi
             if (payload is null) return new(InboxStatus.ServerError, Detail: "resposta inválida");
             return new(InboxStatus.Ok, payload, PollSeconds: HeaderSeconds(res, "X-Insanos-Poll") ?? payload.Poll);
         }
+        catch (HttpRequestException e) when (e.Message.Contains("buffer", StringComparison.OrdinalIgnoreCase))
+        {
+            return new(InboxStatus.ServerError, Detail: "resposta grande demais");
+        }
         catch (HttpRequestException e) { return new(InboxStatus.Offline, Detail: e.Message); }
         catch (TaskCanceledException) when (!ct.IsCancellationRequested) { return new(InboxStatus.Offline, Detail: "tempo esgotado"); }
     }
@@ -105,9 +109,26 @@ public static partial class InboxApi
         return null;
     }
 
-    public static HttpClient CreateClient(string version)
+    /// <summary>A resposta do bot tem poucos KB (até 10 raids); acima disto o app recusa.</summary>
+    public const int MaxResponseBytes = 256 * 1024;
+
+    /// <summary>
+    /// O cliente do app: 20 s de espera, resposta de no máximo 256 KB e sem seguir redirecionamento (a chave só vai
+    /// para o endereço do bot; um 3xx vira erro em vez de mandar o pedido para outro lugar).
+    /// </summary>
+    public static HttpClient CreateClient(string version, HttpMessageHandler? inner = null)
     {
-        var http = new HttpClient { Timeout = TimeSpan.FromSeconds(20) };
+        var handler = inner ?? new SocketsHttpHandler
+        {
+            AllowAutoRedirect = false,
+            PooledConnectionLifetime = TimeSpan.FromMinutes(10),
+            MaxResponseHeadersLength = 64
+        };
+        var http = new HttpClient(handler)
+        {
+            Timeout = TimeSpan.FromSeconds(20),
+            MaxResponseContentBufferSize = MaxResponseBytes
+        };
         http.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("InsanosApp", version));
         return http;
     }

@@ -1,0 +1,10 @@
+# As ações do GitHub ficam presas pelo hash do commit (uma tag pode ser trocada por quem invadir o repositório da
+# ação). O Dependabot abre um pedido quando sai versão nova, com o hash novo, para conferir antes de aceitar.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: "ci"

@@ -117,6 +117,7 @@ internal sealed class SetupForm : ForgeWindow
     private async Task SaveAsync()
     {
         var dir = WowLocator.NormalizeAddonsDir(_dir.Box.Text);
+        if (dir is not null && !WowLocator.LooksLikeAddonsDir(dir)) dir = null;
         if (dir is null || _addon.SelectedValue is not string addon) { SetStatus("Escolha a pasta do WoW Forever com o addon instalado.", false); return; }
         var key = _key.Box.Text.Trim();
         if (!InboxApi.LooksLikeKey(key)) { SetStatus("A chave começa com nfapp_ e vem do /vincular-app no Discord.", false); return; }
